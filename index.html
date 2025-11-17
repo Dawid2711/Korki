@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Traffic Advisor</title>
+<title>Traffic Advisor 2025</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
@@ -16,27 +16,17 @@ button { background:#6200ee; color:white; border:none; cursor:pointer; margin-to
 .waypoint { display:flex; margin-top:0.5rem; }
 .waypoint input { flex:1; margin-right:0.5rem; }
 canvas { margin-top:1rem; }
-ul.suggestions { list-style:none; padding:0; margin:0; border:1px solid #ccc; max-height:150px; overflow-y:auto; position:absolute; background:white; z-index:1000; }
-ul.suggestions li { padding:0.5rem; cursor:pointer; }
-ul.suggestions li:hover { background:#eee; }
-.position-relative { position:relative; }
 </style>
 </head>
 <body>
-<header>Traffic Advisor</header>
+<header>Traffic Advisor 2025</header>
 <main>
 
-<div class="position-relative">
 <label>Punkt startowy:</label>
 <input id="originInput" placeholder="Skąd jedziesz">
-<ul id="originList" class="suggestions"></ul>
-</div>
 
-<div class="position-relative">
 <label>Punkt końcowy:</label>
 <input id="destinationInput" placeholder="Dokąd jedziesz">
-<ul id="destinationList" class="suggestions"></ul>
-</div>
 
 <div id="waypointsContainer"></div>
 <button id="addWaypointBtn">Dodaj punkt pośredni</button>
@@ -54,78 +44,49 @@ ul.suggestions li:hover { background:#eee; }
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0";
-let directionsService, autocompleteService;
-let originPlace = null, destinationPlace = null, waypointPlaces = [];
+const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0"; // Twój nowy klucz API
+let directionsService;
 const cacheExpiration = 24*60*60*1000; // 24h
+let originPlace=null,destinationPlace=null,waypointPlaces=[];
 
-window.initTrafficAdvisor = function() {
+// --- Inicjalizacja Google Maps z PlaceAutocompleteElement ---
+function initTrafficAdvisor() {
     directionsService = new google.maps.DirectionsService();
-    autocompleteService = new google.maps.places.AutocompleteService();
 
-    function setupAutocomplete(inputId,listId,callback){
-        const input = document.getElementById(inputId);
-        const list = document.getElementById(listId);
+    // Start
+    new google.maps.places.PlaceAutocompleteElement({
+        element: document.getElementById("originInput"),
+        country: "pl"
+    }).addEventListener("place_changed", (e)=>{
+        originPlace = e.place.name || e.place.formatted_address || document.getElementById("originInput").value;
+    });
 
-        input.addEventListener('input',()=>{
-            const val = input.value;
-            if(!val){ list.innerHTML=''; return; }
-            autocompleteService.getPlacePredictions({input:val,componentRestrictions:{country:'pl'}}, (predictions,status)=>{
-                list.innerHTML='';
-                if(status==='OK' && predictions){
-                    predictions.forEach(p=>{
-                        const li=document.createElement('li');
-                        li.textContent=p.description;
-                        li.onclick = ()=>{
-                            input.value=p.description;
-                            list.innerHTML='';
-                            callback(p.description);
-                        };
-                        list.appendChild(li);
-                    });
-                }
-            });
-        });
-    }
-
-    setupAutocomplete('originInput','originList', val=>originPlace=val);
-    setupAutocomplete('destinationInput','destinationList', val=>destinationPlace=val);
-};
+    // Destination
+    new google.maps.places.PlaceAutocompleteElement({
+        element: document.getElementById("destinationInput"),
+        country: "pl"
+    }).addEventListener("place_changed", (e)=>{
+        destinationPlace = e.place.name || e.place.formatted_address || document.getElementById("destinationInput").value;
+    });
+}
 
 // --- DODAWANIE PUNKTÓW POŚREDNICH ---
 const waypointsContainer = document.getElementById('waypointsContainer');
 document.getElementById('addWaypointBtn').addEventListener('click', ()=>{
-    const div = document.createElement('div'); div.className='waypoint position-relative';
+    const div = document.createElement('div'); div.className='waypoint';
     const input = document.createElement('input'); input.placeholder="Punkt pośredni";
-    const ul = document.createElement('ul'); ul.className='suggestions';
     const btn = document.createElement('button'); btn.textContent="X"; btn.type="button";
-    btn.onclick = ()=>{ waypointPlaces=waypointPlaces.filter(p=>p.input!==input); div.remove(); };
-    div.appendChild(input); div.appendChild(btn); div.appendChild(ul); waypointsContainer.appendChild(div);
+    btn.onclick = ()=>{ waypointPlaces = waypointPlaces.filter(p=>p.input!==input); div.remove(); };
+    div.appendChild(input); div.appendChild(btn); waypointsContainer.appendChild(div);
 
-    const setupWaypointAutocomplete = (inp, list)=>{
-        inp.addEventListener('input', ()=>{
-            const val = inp.value;
-            if(!val){ list.innerHTML=''; return; }
-            new google.maps.places.AutocompleteService().getPlacePredictions({input:val,componentRestrictions:{country:'pl'}}, (predictions,status)=>{
-                list.innerHTML='';
-                if(status==='OK' && predictions){
-                    predictions.forEach(p=>{
-                        const li=document.createElement('li');
-                        li.textContent=p.description;
-                        li.onclick = ()=>{
-                            inp.value=p.description;
-                            list.innerHTML='';
-                            const existing = waypointPlaces.findIndex(wp=>wp.input===inp);
-                            if(existing!==-1) waypointPlaces[existing].place=p.description;
-                            else waypointPlaces.push({input:inp,place:p.description});
-                        };
-                        list.appendChild(li);
-                    });
-                }
-            });
+    // Autocomplete dla punktu pośredniego
+    new google.maps.places.PlaceAutocompleteElement({element:input,country:"pl"})
+        .addEventListener("place_changed",(e)=>{
+            const place = e.place.name || e.place.formatted_address || input.value;
+            const idx = waypointPlaces.findIndex(wp=>wp.input===input);
+            if(idx!==-1) waypointPlaces[idx].place=place;
+            else waypointPlaces.push({input,place});
         });
-    };
-    setupWaypointAutocomplete(input,ul);
 });
 
 // --- CACHE ---
@@ -203,7 +164,9 @@ document.getElementById('calculateBtn').addEventListener('click', async ()=>{
     });
 
     const validTimes = chartData.filter(d=>d!==null);
-    resultsDiv.innerHTML=`Najkrótszy czas: ${Math.min(...validTimes)} min`;
+    const bestIdx = chartData.indexOf(Math.min(...validTimes));
+    const bestTimeLabel = chartLabels[bestIdx];
+    resultsDiv.innerHTML=`Wyjdź o ${bestTimeLabel} – najkrótszy czas: ${Math.min(...validTimes)} min`;
 
     const ctx=document.getElementById('chart').getContext('2d');
     new Chart(ctx,{
@@ -212,7 +175,6 @@ document.getElementById('calculateBtn').addEventListener('click', async ()=>{
         options:{responsive:true,plugins:{legend:{display:true}}}
     });
 });
-
 </script>
 
 <script src="https://maps.googleapis.com/maps/api/js?key=TU_WKLEJ_SWÓJ_API_KEY&libraries=places&callback=initTrafficAdvisor" async defer></script>
