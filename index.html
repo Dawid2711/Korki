@@ -1,21 +1,67 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test AutocompleteService</title>
+<style>
+body { font-family: Arial, sans-serif; padding: 2rem; }
+input { width: 100%; padding: 0.5rem; margin-bottom: 0.2rem; }
+ul.suggestions { list-style: none; padding: 0; margin: 0; border: 1px solid #ccc; max-height: 150px; overflow-y: auto; }
+ul.suggestions li { padding: 0.5rem; cursor: pointer; }
+ul.suggestions li:hover { background: #eee; }
+</style>
+</head>
+<body>
+
+<h2>Test AutocompleteService</h2>
+<label>Punkt startowy:</label>
 <input id="originInput" placeholder="Skąd jedziesz">
+<ul id="originList" class="suggestions"></ul>
+
+<label>Punkt końcowy:</label>
+<input id="destinationInput" placeholder="Dokąd jedziesz">
+<ul id="destinationList" class="suggestions"></ul>
+
 <script>
-window.initAutocomplete = function() {
-    const originInput = document.getElementById('originInput');
-    const originAutocomplete = new google.maps.places.PlaceAutocompleteElement({
-        input: originInput,
-        componentRestrictions: { country: 'pl' },
-        fields: ['formatted_address','geometry','name']
-    });
-    originAutocomplete.addListener('place_changed', ()=>{
-        const place = originAutocomplete.getPlace();
-        if(!place.geometry){
-            alert("Wybierz miejsce z listy podpowiedzi.");
-            originInput.value='';
-        } else {
-            console.log("Wybrano:", place.formatted_address);
-        }
-    });
-};
+let autocompleteService;
+
+function initAutocompleteService() {
+    autocompleteService = new google.maps.places.AutocompleteService();
+
+    function setupInput(inputId, listId) {
+        const input = document.getElementById(inputId);
+        const list = document.getElementById(listId);
+
+        input.addEventListener('input', () => {
+            const value = input.value;
+            if(!value) { list.innerHTML=''; return; }
+
+            autocompleteService.getPlacePredictions({ input: value, componentRestrictions:{country:'pl'} }, (predictions,status)=>{
+                list.innerHTML='';
+                if(status==='OK' && predictions){
+                    predictions.forEach(p=>{
+                        const li = document.createElement('li');
+                        li.textContent = p.description;
+                        li.onclick = ()=>{
+                            input.value = p.description;
+                            list.innerHTML='';
+                            console.log(`Wybrano ${inputId}:`, p.description);
+                        };
+                        list.appendChild(li);
+                    });
+                }
+            });
+        });
+    }
+
+    setupInput('originInput','originList');
+    setupInput('destinationInput','destinationList');
+}
+
 </script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initAutocomplete" async defer></script>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initAutocompleteService" async defer></script>
+
+</body>
+</html>
