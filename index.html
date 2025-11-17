@@ -1,113 +1,98 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<title>Najlepsza godzina wyjazdu</title>
-<style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    input { width: 300px; padding: 5px; margin: 10px 0; display:block; }
-    button { padding: 5px 10px; }
-    #results { margin-top: 20px; }
-</style>
+  <meta charset="UTF-8">
+  <title>Optymalna trasa z korkami</title>
+  <style>
+    #map {
+      height: 500px;
+      width: 100%;
+    }
+    .controls {
+      margin-bottom: 10px;
+    }
+  </style>
 </head>
 <body>
+  <h2>Znajdź najlepszą godzinę wyjazdu z pracy</h2>
 
-<h2>Planowanie wyjazdu do pracy:</h2>
+  <div class="controls">
+    <input id="startInput" type="text" placeholder="Adres startowy" size="50">
+    <input id="endInput" type="text" placeholder="Adres docelowy" size="50">
+    <button id="routeBtn">Pokaż trasę</button>
+  </div>
 
-<input id="startInput" type="text" placeholder="Adres startowy" />
-<input id="endInput" type="text" placeholder="Adres docelowy" />
-<button id="checkBtn">Sprawdź najlepszą godzinę wyjazdu</button>
+  <div id="map"></div>
 
-<div id="results"></div>
+  <script>
+    let map, directionsService, directionsRenderer;
+    let startAutocomplete, endAutocomplete;
 
-<!-- Google Maps JavaScript API z Places -->
-<script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initAutocomplete"
-    async defer>
-</script>
+    function initAutocomplete() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 52.2297, lng: 21.0122 }, // Warszawa
+        zoom: 12,
+      });
 
-<script>
-let autocompleteStart, autocompleteEnd;
+      directionsService = new google.maps.DirectionsService();
+      directionsRenderer = new google.maps.DirectionsRenderer({ map: map });
 
-function initAutocomplete() {
-    const startInput = document.getElementById("startInput");
-    const endInput = document.getElementById("endInput");
+      // Nowy standard Autocomplete 2025
+      startAutocomplete = new google.maps.places.PlaceAutocompleteElement({
+        element: document.getElementById("startInput"),
+        fields: ["formatted_address"],
+        componentRestrictions: { country: "PL" }
+      });
 
-    autocompleteStart = new google.maps.places.Autocomplete(startInput, {
-        types: ["address"],
-        componentRestrictions: { country: "pl" }
-    });
+      endAutocomplete = new google.maps.places.PlaceAutocompleteElement({
+        element: document.getElementById("endInput"),
+        fields: ["formatted_address"],
+        componentRestrictions: { country: "PL" }
+      });
 
-    autocompleteEnd = new google.maps.places.Autocomplete(endInput, {
-        types: ["address"],
-        componentRestrictions: { country: "pl" }
-    });
-}
+      document.getElementById("routeBtn").addEventListener("click", () => {
+        calculateRoute();
+      });
+    }
 
-function displayResult(message) {
-    const resultsDiv = document.getElementById("results");
-    resultsDiv.innerHTML = `<p>${message}</p>`;
-}
+    function calculateRoute() {
+      const startPlace = document.getElementById("startInput").value;
+      const endPlace = document.getElementById("endInput").value;
 
-// Funkcja do sprawdzenia najlepszej godziny wyjazdu
-document.getElementById("checkBtn").addEventListener("click", () => {
-    const start = document.getElementById("startInput").value;
-    const end = document.getElementById("endInput").value;
-
-    if (!start || !end) {
-        alert("Wpisz oba adresy!");
+      if (!startPlace || !endPlace) {
+        alert("Proszę wpisać oba adresy!");
         return;
-    }
+      }
 
-    const directionsService = new google.maps.DirectionsService();
-
-    // Spróbujemy wybrać najlepszą godzinę w przedziale 7:00-9:00
-    const now = new Date();
-    let bestTime = null;
-    let shortestDuration = Infinity;
-    const promises = [];
-
-    for (let hour = 7; hour <= 9; hour++) {
-        const departureTime = new Date(now);
-        departureTime.setHours(hour, 0, 0, 0);
-
-        promises.push(new Promise((resolve) => {
-            directionsService.route({
-                origin: start,
-                destination: end,
-                travelMode: google.maps.TravelMode.DRIVING,
-                drivingOptions: {
-                    departureTime: departureTime,
-                    trafficModel: 'BEST_GUESS'
-                }
-            }, (result, status) => {
-                if (status === "OK") {
-                    const durationSec = result.routes[0].legs[0].duration_in_traffic.value;
-                    resolve({ hour, durationSec });
-                } else {
-                    resolve(null);
-                }
-            });
-        }));
-    }
-
-    Promise.all(promises).then(results => {
-        results.forEach(r => {
-            if (r && r.durationSec < shortestDuration) {
-                shortestDuration = r.durationSec;
-                bestTime = r.hour;
-            }
-        });
-
-        if (bestTime !== null) {
-            const mins = Math.round(shortestDuration / 60);
-            displayResult(`Najlepiej wyjechać o godzinie ${bestTime}:00. Szacowany czas przejazdu: ${mins} minut.`);
-        } else {
-            displayResult("Nie udało się obliczyć czasu przejazdu. Sprawdź adresy.");
+      // Wyliczenie trasy z uwzględnieniem ruchu drogowego
+      directionsService.route(
+        {
+          origin: startPlace,
+          destination: endPlace,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: {
+            departureTime: new Date(), // teraz
+            trafficModel: "OPTIMISTIC" // albo PESSIMISTIC
+          },
+          unitSystem: google.maps.UnitSystem.METRIC
+        },
+        (result, status) => {
+          if (status === "OK" && result) {
+            directionsRenderer.setDirections(result);
+            const duration = result.routes[0].legs[0].duration_in_traffic.text;
+            alert(`Szacowany czas przejazdu z korkami: ${duration}`);
+          } else {
+            alert("Nie udało się obliczyć trasy: " + status);
+          }
         }
-    });
-});
-</script>
+      );
+    }
+  </script>
 
+  <!-- Nowy sposób ładowania API w 2025 -->
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initAutocomplete&loading=lazy"
+    async defer>
+  </script>
 </body>
 </html>
