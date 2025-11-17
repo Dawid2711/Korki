@@ -15,18 +15,28 @@ input, button { width:100%; padding:0.5rem; margin-top:0.3rem; font-size:1rem; }
 button { background:#6200ee; color:white; border:none; cursor:pointer; margin-top:1rem; }
 .waypoint { display:flex; margin-top:0.5rem; }
 .waypoint input { flex:1; margin-right:0.5rem; }
+.suggestions { background:white; border:1px solid #ccc; max-height:150px; overflow-y:auto; position:absolute; z-index:1000; width:calc(100% - 10px); }
+.suggestions div { padding:5px; cursor:pointer; }
+.suggestions div:hover { background:#eee; }
 canvas { margin-top:1rem; }
+.position-relative { position:relative; }
 </style>
 </head>
 <body>
-<header>Traffic Advisor 2025</header>
+<header>Traffic Advisor 202</header>
 <main>
 
 <label>Punkt startowy:</label>
-<input id="originInput" placeholder="Skąd jedziesz">
+<div class="position-relative">
+<input id="originInput" placeholder="Skąd jedziesz" autocomplete="off">
+<div id="originSuggestions" class="suggestions"></div>
+</div>
 
 <label>Punkt końcowy:</label>
-<input id="destinationInput" placeholder="Dokąd jedziesz">
+<div class="position-relative">
+<input id="destinationInput" placeholder="Dokąd jedziesz" autocomplete="off">
+<div id="destinationSuggestions" class="suggestions"></div>
+</div>
 
 <div id="waypointsContainer"></div>
 <button id="addWaypointBtn">Dodaj punkt pośredni</button>
@@ -44,49 +54,60 @@ canvas { margin-top:1rem; }
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0"; // Twój nowy klucz API
-let directionsService;
-const cacheExpiration = 24*60*60*1000; // 24h
-let originPlace=null,destinationPlace=null,waypointPlaces=[];
+const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0"; // Twój klucz API
+let directionsService = null;
+let cacheExpiration = 24*60*60*1000;
+let originPlace=null, destinationPlace=null, waypointPlaces=[];
 
-// --- Inicjalizacja Google Maps z PlaceAutocompleteElement ---
-function initTrafficAdvisor() {
-    directionsService = new google.maps.DirectionsService();
-
-    // Start
-    new google.maps.places.PlaceAutocompleteElement({
-        element: document.getElementById("originInput"),
-        country: "pl"
-    }).addEventListener("place_changed", (e)=>{
-        originPlace = e.place.name || e.place.formatted_address || document.getElementById("originInput").value;
-    });
-
-    // Destination
-    new google.maps.places.PlaceAutocompleteElement({
-        element: document.getElementById("destinationInput"),
-        country: "pl"
-    }).addEventListener("place_changed", (e)=>{
-        destinationPlace = e.place.name || e.place.formatted_address || document.getElementById("destinationInput").value;
-    });
+// --- AUTOCOMPLETE POPRZEZ PLACES API ---
+async function fetchPlaceSuggestions(input) {
+    if(!input) return [];
+    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=geocode&components=country:pl&key=${apiKey}`;
+    try {
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxyUrl);
+        const data = await res.json();
+        const json = JSON.parse(data.contents);
+        if(json.status==="OK") return json.predictions.map(p=>p.description);
+    } catch(e){ console.error(e); }
+    return [];
 }
+
+// --- UTILS DLA PODPOWIEDZI ---
+function setupAutocomplete(inputEl, suggestionsEl, callback) {
+    inputEl.addEventListener('input', async ()=>{
+        const val = inputEl.value.trim();
+        const suggestions = await fetchPlaceSuggestions(val);
+        suggestionsEl.innerHTML = '';
+        suggestions.forEach(s=>{
+            const div = document.createElement('div');
+            div.textContent = s;
+            div.onclick = ()=>{ inputEl.value=s; suggestionsEl.innerHTML=''; callback(s); };
+            suggestionsEl.appendChild(div);
+        });
+    });
+    document.addEventListener('click', e=>{ if(!inputEl.contains(e.target)) suggestionsEl.innerHTML=''; });
+}
+
+// --- INICJALIZACJA ---
+setupAutocomplete(document.getElementById('originInput'), document.getElementById('originSuggestions'), val=>originPlace=val);
+setupAutocomplete(document.getElementById('destinationInput'), document.getElementById('destinationSuggestions'), val=>destinationPlace=val);
 
 // --- DODAWANIE PUNKTÓW POŚREDNICH ---
 const waypointsContainer = document.getElementById('waypointsContainer');
 document.getElementById('addWaypointBtn').addEventListener('click', ()=>{
-    const div = document.createElement('div'); div.className='waypoint';
-    const input = document.createElement('input'); input.placeholder="Punkt pośredni";
+    const div = document.createElement('div'); div.className='waypoint position-relative';
+    const input = document.createElement('input'); input.placeholder="Punkt pośredni"; input.autocomplete="off";
     const btn = document.createElement('button'); btn.textContent="X"; btn.type="button";
-    btn.onclick = ()=>{ waypointPlaces = waypointPlaces.filter(p=>p.input!==input); div.remove(); };
-    div.appendChild(input); div.appendChild(btn); waypointsContainer.appendChild(div);
-
-    // Autocomplete dla punktu pośredniego
-    new google.maps.places.PlaceAutocompleteElement({element:input,country:"pl"})
-        .addEventListener("place_changed",(e)=>{
-            const place = e.place.name || e.place.formatted_address || input.value;
-            const idx = waypointPlaces.findIndex(wp=>wp.input===input);
-            if(idx!==-1) waypointPlaces[idx].place=place;
-            else waypointPlaces.push({input,place});
-        });
+    btn.onclick=()=>{ waypointPlaces = waypointPlaces.filter(p=>p.input!==input); div.remove(); };
+    const sugg = document.createElement('div'); sugg.className='suggestions';
+    div.appendChild(input); div.appendChild(btn); div.appendChild(sugg);
+    waypointsContainer.appendChild(div);
+    setupAutocomplete(input, sugg, val=>{
+        const idx = waypointPlaces.findIndex(wp=>wp.input===input);
+        if(idx!==-1) waypointPlaces[idx].place=val;
+        else waypointPlaces.push({input,place:val});
+    });
 });
 
 // --- CACHE ---
@@ -104,7 +125,7 @@ function saveToCache(origin,destination,departUnix,durationSec){
     localStorage.setItem('routesCache',JSON.stringify(cache));
 }
 
-// --- Fetch segment ---
+// --- FETCH SEGMENT ---
 async function fetchSegment(origin,destination,departUnix){
     const cached = getFromCache(origin,destination,departUnix);
     if(cached!==null) return cached;
@@ -123,7 +144,7 @@ async function fetchSegment(origin,destination,departUnix){
     });
 }
 
-// --- Fetch całej trasy ---
+// --- FETCH CAŁEJ TRASY ---
 async function fetchRouteTotalTimeParallel(points, departUnix){
     const promises=[];
     for(let i=0;i<points.length-1;i++) promises.push(fetchSegment(points[i],points[i+1],departUnix));
@@ -131,9 +152,9 @@ async function fetchRouteTotalTimeParallel(points, departUnix){
     return segmentTimes.filter(s=>s!==null).reduce((a,b)=>a+b,0);
 }
 
-// --- Event calculate ---
+// --- EVENT CALCULATE ---
 document.getElementById('calculateBtn').addEventListener('click', async ()=>{
-    if(!originPlace || !destinationPlace){ alert("Wybierz start i koniec z listy podpowiedzi."); return; }
+    if(!originPlace || !destinationPlace){ alert("Wybierz start i koniec z podpowiedzi"); return; }
     const waypoints = waypointPlaces.map(p=>p.place).filter(p=>p);
     const routePoints = [originPlace,...waypoints,destinationPlace];
 
@@ -149,6 +170,8 @@ document.getElementById('calculateBtn').addEventListener('click', async ()=>{
 
     const timePoints=[];
     for(let t=fromDate.getTime();t<=toDate.getTime();t+=stepMin*60000) timePoints.push(Math.floor(t/1000));
+
+    if(!directionsService) directionsService = new google.maps.DirectionsService();
 
     const results=[];
     for(const departUnix of timePoints){
@@ -177,7 +200,7 @@ document.getElementById('calculateBtn').addEventListener('click', async ()=>{
 });
 </script>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=TU_WKLEJ_SWÓJ_API_KEY&libraries=places&callback=initTrafficAdvisor" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=TU_WKLEJ_SWÓJ_API_KEY&callback=initTrafficAdvisor" async defer></script>
 
 </main>
 </body>
