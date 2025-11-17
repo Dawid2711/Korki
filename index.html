@@ -2,23 +2,25 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <title>Optymalna trasa z korkami</title>
+  <title>Trasa z podpowiedziami adresów</title>
   <style>
-    #map {
-      height: 500px;
-      width: 100%;
-    }
-    .controls {
+    #map { height: 500px; width: 100%; }
+    .autocomplete-container {
+      display: flex;
+      gap: 10px;
       margin-bottom: 10px;
+    }
+    .pac-container {
+      z-index: 1000; /* żeby podpowiedzi były nad mapą */
     }
   </style>
 </head>
 <body>
-  <h2>Znajdź najlepszą godzinę wyjazdu z pracy</h2>
+  <h2>Znajdź trasę i czas przejazdu</h2>
 
-  <div class="controls">
-    <input id="startInput" type="text" placeholder="Adres startowy" size="50">
-    <input id="endInput" type="text" placeholder="Adres docelowy" size="50">
+  <div class="autocomplete-container">
+    <input id="startInput" placeholder="Adres startowy" size="50">
+    <input id="endInput" placeholder="Adres docelowy" size="50">
     <button id="routeBtn">Pokaż trasę</button>
   </div>
 
@@ -28,24 +30,22 @@
     let map, directionsService, directionsRenderer;
     let startAutocomplete, endAutocomplete;
 
-    function initAutocomplete() {
+    function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
         center: { lat: 52.2297, lng: 21.0122 }, // Warszawa
-        zoom: 12,
+        zoom: 12
       });
 
       directionsService = new google.maps.DirectionsService();
       directionsRenderer = new google.maps.DirectionsRenderer({ map: map });
 
-      // Nowy standard Autocomplete 2025
-      startAutocomplete = new google.maps.places.PlaceAutocompleteElement({
-        element: document.getElementById("startInput"),
+      // Klasyczne Autocomplete (działa w nowym API 2025)
+      startAutocomplete = new google.maps.places.Autocomplete(document.getElementById("startInput"), {
         fields: ["formatted_address"],
         componentRestrictions: { country: "PL" }
       });
 
-      endAutocomplete = new google.maps.places.PlaceAutocompleteElement({
-        element: document.getElementById("endInput"),
+      endAutocomplete = new google.maps.places.Autocomplete(document.getElementById("endInput"), {
         fields: ["formatted_address"],
         componentRestrictions: { country: "PL" }
       });
@@ -56,42 +56,40 @@
     }
 
     function calculateRoute() {
-      const startPlace = document.getElementById("startInput").value;
-      const endPlace = document.getElementById("endInput").value;
+      const start = document.getElementById("startInput").value;
+      const end = document.getElementById("endInput").value;
 
-      if (!startPlace || !endPlace) {
+      if (!start || !end) {
         alert("Proszę wpisać oba adresy!");
         return;
       }
 
-      // Wyliczenie trasy z uwzględnieniem ruchu drogowego
       directionsService.route(
         {
-          origin: startPlace,
-          destination: endPlace,
+          origin: start,
+          destination: end,
           travelMode: google.maps.TravelMode.DRIVING,
           drivingOptions: {
-            departureTime: new Date(), // teraz
-            trafficModel: "OPTIMISTIC" // albo PESSIMISTIC
+            departureTime: new Date(),
+            trafficModel: "OPTIMISTIC" // PESSIMISTIC też działa
           },
           unitSystem: google.maps.UnitSystem.METRIC
         },
         (result, status) => {
-          if (status === "OK" && result) {
+          if (status === "OK") {
             directionsRenderer.setDirections(result);
             const duration = result.routes[0].legs[0].duration_in_traffic.text;
-            alert(`Szacowany czas przejazdu z korkami: ${duration}`);
+            alert(`Szacowany czas przejazdu: ${duration}`);
           } else {
-            alert("Nie udało się obliczyć trasy: " + status);
+            alert("Błąd wyznaczania trasy: " + status);
           }
         }
       );
     }
   </script>
 
-  <!-- Nowy sposób ładowania API w 2025 -->
   <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initAutocomplete&loading=lazy"
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initMap"
     async defer>
   </script>
 </body>
