@@ -13,7 +13,8 @@
   label { display:block; margin-top:1rem; }
   input, button, select { width:100%; padding:0.5rem; margin-top:0.3rem; font-size:1rem; }
   button { background:#6200ee; color:white; border:none; cursor:pointer; margin-top:1rem; }
-  .route-block { border:1px solid #ccc; padding:0.5rem; margin-top:1rem; border-radius:8px; background:white; }
+  .waypoint { display:flex; margin-top:0.5rem; }
+  .waypoint input { flex:1; margin-right:0.5rem; }
   canvas { margin-top:1rem; }
 </style>
 </head>
@@ -21,11 +22,14 @@
 <header>Traffic Advisor</header>
 <main>
 
-<label>API Key Google Maps:</label>
-<input id="apiKey" placeholder="Wpisz swój API Key">
+<label>Punkt startowy:</label>
+<input id="originInput" placeholder="Skąd jedziesz">
 
-<label>Trasa (punkt po punkcie, oddziel przecinkami):</label>
-<input id="routePoints" placeholder="A,B,C,D">
+<label>Punkt końcowy:</label>
+<input id="destinationInput" placeholder="Dokąd jedziesz">
+
+<div id="waypointsContainer"></div>
+<button id="addWaypointBtn">Dodaj punkt pośredni</button>
 
 <label>Okno czasowe:</label>
 <input type="time" id="fromTime" value="15:00">
@@ -40,6 +44,9 @@
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
+// --- TWÓJ GOOGLE API KEY ---
+const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0";
+
 // --- CACHE UTILS ---
 function getCacheKey(origin,destination,departUnix){
     return `${origin}|${destination}|${departUnix}`;
@@ -73,9 +80,9 @@ function splitRouteIntoSegments(points){
 
 // --- FETCH DIRECTIONS WITH CACHE & LIMIT ---
 let dailyRequests = 0;
-const MAX_DAILY_REQUESTS = 500; // limit bezpieczeństwa
+const MAX_DAILY_REQUESTS = 500;
 
-async function fetchSegment(apiKey, origin, destination, departUnix){
+async function fetchSegment(origin, destination, departUnix){
     if(dailyRequests>=MAX_DAILY_REQUESTS){
         throw new Error('Limit dzienny zapytań osiągnięty');
     }
@@ -84,6 +91,7 @@ async function fetchSegment(apiKey, origin, destination, departUnix){
 
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departure_time=${departUnix}&key=${apiKey}`;
     dailyRequests++;
+    // cross-origin workaround
     const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     const data = JSON.parse((await res.json()).contents);
     if(data.status!=="OK") throw new Error(data.status);
@@ -93,25 +101,52 @@ async function fetchSegment(apiKey, origin, destination, departUnix){
 }
 
 // --- CALCULATE TOTAL TIME ---
-async function fetchRouteTotalTime(apiKey, points, departUnix){
+async function fetchRouteTotalTime(points, departUnix){
     const segments = splitRouteIntoSegments(points);
     let total = 0;
     for(let seg of segments){
-        const segTime = await fetchSegment(apiKey, seg.origin, seg.destination, departUnix);
+        const segTime = await fetchSegment(seg.origin, seg.destination, departUnix);
         total += segTime;
     }
     return total;
 }
 
-// --- EVENT LISTENER ---
+// --- AUTOCOMPLETE ---
+function initAutocomplete(){
+    const options = { types: ['geocode'], componentRestrictions:{country:'pl'} };
+    new google.maps.places.Autocomplete(document.getElementById('originInput'), options);
+    new google.maps.places.Autocomplete(document.getElementById('destinationInput'), options);
+}
+
+// --- DODAWANIE PUNKTÓW POŚREDNICH ---
+const waypointsContainer = document.getElementById('waypointsContainer');
+document.getElementById('addWaypointBtn').addEventListener('click', ()=>{
+    const div = document.createElement('div');
+    div.className='waypoint';
+    const input = document.createElement('input');
+    input.placeholder = "Punkt pośredni";
+    const btn = document.createElement('button');
+    btn.textContent = "X";
+    btn.type = "button";
+    btn.onclick = ()=>div.remove();
+    div.appendChild(input); div.appendChild(btn);
+    waypointsContainer.appendChild(div);
+    new google.maps.places.Autocomplete(input, {types:['geocode'], componentRestrictions:{country:'pl'}});
+});
+
+// --- EVENT LISTENER CALCULATE ---
 document.getElementById('calculateBtn').addEventListener('click', async()=>{
-    const apiKey = document.getElementById('apiKey').value.trim();
-    const routePoints = document.getElementById('routePoints').value.trim().split(',').map(s=>s.trim());
+    const origin = document.getElementById('originInput').value.trim();
+    const destination = document.getElementById('destinationInput').value.trim();
+    if(!origin || !destination){ alert('Wpisz start i koniec'); return; }
+
+    const waypointInputs = Array.from(waypointsContainer.querySelectorAll('input'));
+    const waypoints = waypointInputs.map(i=>i.value.trim()).filter(v=>v!=="");
+    const routePoints = [origin, ...waypoints, destination];
+
     const fromTime = document.getElementById('fromTime').value;
     const toTime = document.getElementById('toTime').value;
     const stepMin = parseInt(document.getElementById('stepMin').value);
-
-    if(!apiKey || routePoints.length<2){ alert('Wpisz API Key i minimum 2 punkty'); return; }
 
     const resultsDiv = document.getElementById('results');
     resultsDiv.innerHTML = 'Trwa obliczanie...';
@@ -127,7 +162,7 @@ document.getElementById('calculateBtn').addEventListener('click', async()=>{
     for(let t=fromDate.getTime(); t<=toDate.getTime(); t+=stepMin*60*1000){
         const departUnix = Math.floor(t/1000);
         try{
-            const totalSec = await fetchRouteTotalTime(apiKey, routePoints, departUnix);
+            const totalSec = await fetchRouteTotalTime(routePoints, departUnix);
             const minLabel = `${Math.floor(t/3600000)}:${("0"+Math.floor((t/60000)%60)).slice(-2)}`;
             chartLabels.push(minLabel);
             chartData.push(Math.round(totalSec/60));
@@ -157,8 +192,13 @@ document.getElementById('calculateBtn').addEventListener('click', async()=>{
         options:{responsive:true,plugins:{legend:{display:true}}}
     });
 });
-</script>
 
+// --- Inicjalizacja Google Autocomplete ---
+const script = document.createElement('script');
+script.src=`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initAutocomplete`;
+script.async=true;
+document.head.appendChild(script);
+</script>
 </main>
 </body>
 </html>
