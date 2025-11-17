@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traffic Advisor</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: 'Roboto', sans-serif; margin:0; padding:0; background:#f5f5f5; }
+  header { background:#6200ee; color:white; padding:1rem; text-align:center; font-size:1.5rem; }
+  main { padding:1rem; max-width:600px; margin:auto; }
+  label { display:block; margin-top:1rem; }
+  input, button, select { width:100%; padding:0.5rem; margin-top:0.3rem; font-size:1rem; }
+  button { background:#6200ee; color:white; border:none; cursor:pointer; margin-top:1rem; }
+  .route-block { border:1px solid #ccc; padding:0.5rem; margin-top:1rem; border-radius:8px; background:white; }
+  canvas { margin-top:1rem; }
+</style>
+</head>
+<body>
+<header>Traffic Advisor</header>
+<main>
+
+<label>API Key Google Maps:</label>
+<input id="apiKey" placeholder="Wpisz swój API Key">
+
+<label>Trasa (punkt po punkcie, oddziel przecinkami):</label>
+<input id="routePoints" placeholder="A,B,C,D">
+
+<label>Okno czasowe:</label>
+<input type="time" id="fromTime" value="15:00">
+<input type="time" id="toTime" value="17:00">
+
+<label>Krok w minutach:</label>
+<input type="number" id="stepMin" value="10">
+
+<button id="calculateBtn">Oblicz najlepszy czas wyjścia</button>
+
+<div id="results"></div>
+<canvas id="chart" width="400" height="200"></canvas>
+
+<script>
+// --- CACHE UTILS ---
+function getCacheKey(origin,destination,departUnix){
+    return `${origin}|${destination}|${departUnix}`;
+}
+
+function saveToCache(origin,destination,departUnix,durationSec){
+    let cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
+    const key = getCacheKey(origin,destination,departUnix);
+    cache[key] = {durationInTraffic:durationSec, timestamp:Date.now()};
+    localStorage.setItem('routesCache', JSON.stringify(cache));
+}
+
+function getFromCache(origin,destination,departUnix,expirationMs=24*3600*1000){
+    const cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
+    const key = getCacheKey(origin,destination,departUnix);
+    const item = cache[key];
+    if(item && (Date.now()-item.timestamp) < expirationMs){
+        return item.durationInTraffic;
+    }
+    return null;
+}
+
+// --- SEGMENTY TRAS ---
+function splitRouteIntoSegments(points){
+    const segments = [];
+    for(let i=0;i<points.length-1;i++){
+        segments.push({origin:points[i],destination:points[i+1]});
+    }
+    return segments;
+}
+
+// --- FETCH DIRECTIONS WITH CACHE & LIMIT ---
+let dailyRequests = 0;
+const MAX_DAILY_REQUESTS = 500; // limit bezpieczeństwa
+
+async function fetchSegment(apiKey, origin, destination, departUnix){
+    if(dailyRequests>=MAX_DAILY_REQUESTS){
+        throw new Error('Limit dzienny zapytań osiągnięty');
+    }
+    const cached = getFromCache(origin,destination,departUnix);
+    if(cached!==null) return cached;
+
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departure_time=${departUnix}&key=${apiKey}`;
+    dailyRequests++;
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    const data = JSON.parse((await res.json()).contents);
+    if(data.status!=="OK") throw new Error(data.status);
+    const durationSec = data.routes[0].legs[0].duration_in_traffic?.value || data.routes[0].legs[0].duration.value;
+    saveToCache(origin,destination,departUnix,durationSec);
+    return durationSec;
+}
+
+// --- CALCULATE TOTAL TIME ---
+async function fetchRouteTotalTime(apiKey, points, departUnix){
+    const segments = splitRouteIntoSegments(points);
+    let total = 0;
+    for(let seg of segments){
+        const segTime = await fetchSegment(apiKey, seg.origin, seg.destination, departUnix);
+        total += segTime;
+    }
+    return total;
+}
+
+// --- EVENT LISTENER ---
+document.getElementById('calculateBtn').addEventListener('click', async()=>{
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const routePoints = document.getElementById('routePoints').value.trim().split(',').map(s=>s.trim());
+    const fromTime = document.getElementById('fromTime').value;
+    const toTime = document.getElementById('toTime').value;
+    const stepMin = parseInt(document.getElementById('stepMin').value);
+
+    if(!apiKey || routePoints.length<2){ alert('Wpisz API Key i minimum 2 punkty'); return; }
+
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = 'Trwa obliczanie...';
+
+    const chartLabels = [];
+    const chartData = [];
+
+    const fromDate = new Date();
+    fromDate.setHours(...fromTime.split(':'));
+    const toDate = new Date();
+    toDate.setHours(...toTime.split(':'));
+
+    for(let t=fromDate.getTime(); t<=toDate.getTime(); t+=stepMin*60*1000){
+        const departUnix = Math.floor(t/1000);
+        try{
+            const totalSec = await fetchRouteTotalTime(apiKey, routePoints, departUnix);
+            const minLabel = `${Math.floor(t/3600000)}:${("0"+Math.floor((t/60000)%60)).slice(-2)}`;
+            chartLabels.push(minLabel);
+            chartData.push(Math.round(totalSec/60));
+        }catch(err){
+            console.error(err);
+            chartLabels.push('err');
+            chartData.push(null);
+        }
+    }
+
+    resultsDiv.innerHTML = `Najkrótszy czas: ${Math.min(...chartData)} min`;
+
+    const ctx = document.getElementById('chart').getContext('2d');
+    new Chart(ctx, {
+        type:'line',
+        data:{
+            labels: chartLabels,
+            datasets:[{
+                label:'Czas przejazdu [min]',
+                data: chartData,
+                borderColor:'#6200ee',
+                backgroundColor:'rgba(98,0,238,0.2)',
+                fill:true,
+                tension:0.3
+            }]
+        },
+        options:{responsive:true,plugins:{legend:{display:true}}}
+    });
+});
+</script>
+
+</main>
+</body>
+</html>
