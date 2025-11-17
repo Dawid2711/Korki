@@ -2,206 +2,112 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Traffic Advisor 2025</title>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>Najlepsza godzina wyjazdu</title>
 <style>
-body { font-family: 'Roboto', sans-serif; margin:0; padding:0; background:#f5f5f5; }
-header { background:#6200ee; color:white; padding:1rem; text-align:center; font-size:1.5rem; }
-main { padding:1rem; max-width:600px; margin:auto; }
-label { display:block; margin-top:1rem; }
-input, button { width:100%; padding:0.5rem; margin-top:0.3rem; font-size:1rem; }
-button { background:#6200ee; color:white; border:none; cursor:pointer; margin-top:1rem; }
-.waypoint { display:flex; margin-top:0.5rem; }
-.waypoint input { flex:1; margin-right:0.5rem; }
-.suggestions { background:white; border:1px solid #ccc; max-height:150px; overflow-y:auto; position:absolute; z-index:1000; width:calc(100% - 10px); }
-.suggestions div { padding:5px; cursor:pointer; }
-.suggestions div:hover { background:#eee; }
-canvas { margin-top:1rem; }
-.position-relative { position:relative; }
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    input { width: 300px; padding: 5px; margin: 10px 0; display:block; }
+    button { padding: 5px 10px; }
+    #results { margin-top: 20px; }
 </style>
 </head>
 <body>
-<header>Traffic Advisor 202</header>
-<main>
 
-<label>Punkt startowy:</label>
-<div class="position-relative">
-<input id="originInput" placeholder="Skąd jedziesz" autocomplete="off">
-<div id="originSuggestions" class="suggestions"></div>
-</div>
+<h2>Planowanie wyjazdu do pracy:</h2>
 
-<label>Punkt końcowy:</label>
-<div class="position-relative">
-<input id="destinationInput" placeholder="Dokąd jedziesz" autocomplete="off">
-<div id="destinationSuggestions" class="suggestions"></div>
-</div>
-
-<div id="waypointsContainer"></div>
-<button id="addWaypointBtn">Dodaj punkt pośredni</button>
-
-<label>Okno czasowe:</label>
-<input type="time" id="fromTime" value="19:00">
-<input type="time" id="toTime" value="20:00">
-
-<label>Krok w minutach:</label>
-<input type="number" id="stepMin" value="10">
-
-<button id="calculateBtn">Oblicz najlepszy czas wyjścia</button>
+<input id="startInput" type="text" placeholder="Adres startowy" />
+<input id="endInput" type="text" placeholder="Adres docelowy" />
+<button id="checkBtn">Sprawdź najlepszą godzinę wyjazdu</button>
 
 <div id="results"></div>
-<canvas id="chart" width="400" height="200"></canvas>
+
+<!-- Google Maps JavaScript API z Places -->
+<script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initAutocomplete"
+    async defer>
+</script>
 
 <script>
-const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0"; // Twój klucz API
-let directionsService = null;
-let cacheExpiration = 24*60*60*1000;
-let originPlace=null, destinationPlace=null, waypointPlaces=[];
+let autocompleteStart, autocompleteEnd;
 
-// --- AUTOCOMPLETE POPRZEZ PLACES API ---
-async function fetchPlaceSuggestions(input) {
-    if(!input) return [];
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=geocode&components=country:pl&key=${apiKey}`;
-    try {
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        const res = await fetch(proxyUrl);
-        const data = await res.json();
-        const json = JSON.parse(data.contents);
-        if(json.status==="OK") return json.predictions.map(p=>p.description);
-    } catch(e){ console.error(e); }
-    return [];
-}
+function initAutocomplete() {
+    const startInput = document.getElementById("startInput");
+    const endInput = document.getElementById("endInput");
 
-// --- UTILS DLA PODPOWIEDZI ---
-function setupAutocomplete(inputEl, suggestionsEl, callback) {
-    inputEl.addEventListener('input', async ()=>{
-        const val = inputEl.value.trim();
-        const suggestions = await fetchPlaceSuggestions(val);
-        suggestionsEl.innerHTML = '';
-        suggestions.forEach(s=>{
-            const div = document.createElement('div');
-            div.textContent = s;
-            div.onclick = ()=>{ inputEl.value=s; suggestionsEl.innerHTML=''; callback(s); };
-            suggestionsEl.appendChild(div);
-        });
+    autocompleteStart = new google.maps.places.Autocomplete(startInput, {
+        types: ["address"],
+        componentRestrictions: { country: "pl" }
     });
-    document.addEventListener('click', e=>{ if(!inputEl.contains(e.target)) suggestionsEl.innerHTML=''; });
-}
 
-// --- INICJALIZACJA ---
-setupAutocomplete(document.getElementById('originInput'), document.getElementById('originSuggestions'), val=>originPlace=val);
-setupAutocomplete(document.getElementById('destinationInput'), document.getElementById('destinationSuggestions'), val=>destinationPlace=val);
-
-// --- DODAWANIE PUNKTÓW POŚREDNICH ---
-const waypointsContainer = document.getElementById('waypointsContainer');
-document.getElementById('addWaypointBtn').addEventListener('click', ()=>{
-    const div = document.createElement('div'); div.className='waypoint position-relative';
-    const input = document.createElement('input'); input.placeholder="Punkt pośredni"; input.autocomplete="off";
-    const btn = document.createElement('button'); btn.textContent="X"; btn.type="button";
-    btn.onclick=()=>{ waypointPlaces = waypointPlaces.filter(p=>p.input!==input); div.remove(); };
-    const sugg = document.createElement('div'); sugg.className='suggestions';
-    div.appendChild(input); div.appendChild(btn); div.appendChild(sugg);
-    waypointsContainer.appendChild(div);
-    setupAutocomplete(input, sugg, val=>{
-        const idx = waypointPlaces.findIndex(wp=>wp.input===input);
-        if(idx!==-1) waypointPlaces[idx].place=val;
-        else waypointPlaces.push({input,place:val});
-    });
-});
-
-// --- CACHE ---
-function getCacheKey(origin,destination,departUnix){ return `${origin}|${destination}|${departUnix}`; }
-function getFromCache(origin,destination,departUnix){
-    const cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
-    const key = getCacheKey(origin,destination,departUnix);
-    const item = cache[key];
-    if(item && (Date.now()-item.timestamp)<cacheExpiration) return item.durationInTraffic;
-    return null;
-}
-function saveToCache(origin,destination,departUnix,durationSec){
-    const cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
-    cache[getCacheKey(origin,destination,departUnix)]={durationInTraffic:durationSec,timestamp:Date.now()};
-    localStorage.setItem('routesCache',JSON.stringify(cache));
-}
-
-// --- FETCH SEGMENT ---
-async function fetchSegment(origin,destination,departUnix){
-    const cached = getFromCache(origin,destination,departUnix);
-    if(cached!==null) return cached;
-
-    return new Promise(resolve=>{
-        directionsService.route({
-            origin,destination,travelMode:google.maps.TravelMode.DRIVING,
-            drivingOptions:{departureTime:new Date(departUnix*1000)}
-        }, (result,status)=>{
-            if(status==='OK'){
-                const durationSec = result.routes[0].legs[0].duration_in_traffic?.value || result.routes[0].legs[0].duration.value;
-                saveToCache(origin,destination,departUnix,durationSec);
-                resolve(durationSec);
-            } else { console.warn("Błąd segmentu",origin,destination,status); resolve(null); }
-        });
+    autocompleteEnd = new google.maps.places.Autocomplete(endInput, {
+        types: ["address"],
+        componentRestrictions: { country: "pl" }
     });
 }
 
-// --- FETCH CAŁEJ TRASY ---
-async function fetchRouteTotalTimeParallel(points, departUnix){
-    const promises=[];
-    for(let i=0;i<points.length-1;i++) promises.push(fetchSegment(points[i],points[i+1],departUnix));
-    const segmentTimes = await Promise.all(promises);
-    return segmentTimes.filter(s=>s!==null).reduce((a,b)=>a+b,0);
+function displayResult(message) {
+    const resultsDiv = document.getElementById("results");
+    resultsDiv.innerHTML = `<p>${message}</p>`;
 }
 
-// --- EVENT CALCULATE ---
-document.getElementById('calculateBtn').addEventListener('click', async ()=>{
-    if(!originPlace || !destinationPlace){ alert("Wybierz start i koniec z podpowiedzi"); return; }
-    const waypoints = waypointPlaces.map(p=>p.place).filter(p=>p);
-    const routePoints = [originPlace,...waypoints,destinationPlace];
+// Funkcja do sprawdzenia najlepszej godziny wyjazdu
+document.getElementById("checkBtn").addEventListener("click", () => {
+    const start = document.getElementById("startInput").value;
+    const end = document.getElementById("endInput").value;
 
-    const fromTime = document.getElementById('fromTime').value;
-    const toTime = document.getElementById('toTime').value;
-    const stepMin = parseInt(document.getElementById('stepMin').value);
-
-    const resultsDiv=document.getElementById('results'); resultsDiv.innerHTML='Trwa obliczanie...';
-    const chartLabels=[]; const chartData=[];
-
-    const fromDate=new Date(); fromDate.setHours(...fromTime.split(':'));
-    const toDate=new Date(); toDate.setHours(...toTime.split(':'));
-
-    const timePoints=[];
-    for(let t=fromDate.getTime();t<=toDate.getTime();t+=stepMin*60000) timePoints.push(Math.floor(t/1000));
-
-    if(!directionsService) directionsService = new google.maps.DirectionsService();
-
-    const results=[];
-    for(const departUnix of timePoints){
-        const totalSec = await fetchRouteTotalTimeParallel(routePoints,departUnix);
-        results.push(totalSec);
+    if (!start || !end) {
+        alert("Wpisz oba adresy!");
+        return;
     }
 
-    results.forEach((totalSec,i)=>{
-        const t=new Date(timePoints[i]*1000);
-        const minLabel = `${("0"+t.getHours()).slice(-2)}:${("0"+t.getMinutes()).slice(-2)}`;
-        chartLabels.push(minLabel);
-        chartData.push(totalSec?Math.round(totalSec/60):null);
-    });
+    const directionsService = new google.maps.DirectionsService();
 
-    const validTimes = chartData.filter(d=>d!==null);
-    const bestIdx = chartData.indexOf(Math.min(...validTimes));
-    const bestTimeLabel = chartLabels[bestIdx];
-    resultsDiv.innerHTML=`Wyjdź o ${bestTimeLabel} – najkrótszy czas: ${Math.min(...validTimes)} min`;
+    // Spróbujemy wybrać najlepszą godzinę w przedziale 7:00-9:00
+    const now = new Date();
+    let bestTime = null;
+    let shortestDuration = Infinity;
+    const promises = [];
 
-    const ctx=document.getElementById('chart').getContext('2d');
-    new Chart(ctx,{
-        type:'line',
-        data:{labels:chartLabels,datasets:[{label:'Czas przejazdu [min]',data:chartData,borderColor:'#6200ee',backgroundColor:'rgba(98,0,238,0.2)',fill:true,tension:0.3}]},
-        options:{responsive:true,plugins:{legend:{display:true}}}
+    for (let hour = 7; hour <= 9; hour++) {
+        const departureTime = new Date(now);
+        departureTime.setHours(hour, 0, 0, 0);
+
+        promises.push(new Promise((resolve) => {
+            directionsService.route({
+                origin: start,
+                destination: end,
+                travelMode: google.maps.TravelMode.DRIVING,
+                drivingOptions: {
+                    departureTime: departureTime,
+                    trafficModel: 'BEST_GUESS'
+                }
+            }, (result, status) => {
+                if (status === "OK") {
+                    const durationSec = result.routes[0].legs[0].duration_in_traffic.value;
+                    resolve({ hour, durationSec });
+                } else {
+                    resolve(null);
+                }
+            });
+        }));
+    }
+
+    Promise.all(promises).then(results => {
+        results.forEach(r => {
+            if (r && r.durationSec < shortestDuration) {
+                shortestDuration = r.durationSec;
+                bestTime = r.hour;
+            }
+        });
+
+        if (bestTime !== null) {
+            const mins = Math.round(shortestDuration / 60);
+            displayResult(`Najlepiej wyjechać o godzinie ${bestTime}:00. Szacowany czas przejazdu: ${mins} minut.`);
+        } else {
+            displayResult("Nie udało się obliczyć czasu przejazdu. Sprawdź adresy.");
+        }
     });
 });
 </script>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=TU_WKLEJ_SWÓJ_API_KEY&callback=initTrafficAdvisor" async defer></script>
-
-</main>
 </body>
 </html>
