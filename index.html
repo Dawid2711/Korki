@@ -47,28 +47,6 @@ canvas { margin-top:1rem; }
 // --- TWÓJ GOOGLE API KEY ---
 const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0";
 
-// --- CACHE UTILS ---
-function getCacheKey(origin,destination,departUnix){
-    return `${origin}|${destination}|${departUnix}`;
-}
-
-function saveToCache(origin,destination,departUnix,durationSec){
-    let cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
-    const key = getCacheKey(origin,destination,departUnix);
-    cache[key] = {durationInTraffic:durationSec, timestamp:Date.now()};
-    localStorage.setItem('routesCache', JSON.stringify(cache));
-}
-
-function getFromCache(origin,destination,departUnix,expirationMs=24*3600*1000){
-    const cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
-    const key = getCacheKey(origin,destination,departUnix);
-    const item = cache[key];
-    if(item && (Date.now()-item.timestamp) < expirationMs){
-        return item.durationInTraffic;
-    }
-    return null;
-}
-
 // --- SEGMENTY TRAS ---
 function splitRouteIntoSegments(points){
     const segments = [];
@@ -78,29 +56,31 @@ function splitRouteIntoSegments(points){
     return segments;
 }
 
-// --- FETCH DIRECTIONS WITH CACHE & LIMIT ---
-let dailyRequests = 0;
-const MAX_DAILY_REQUESTS = 500;
+// --- DirectionsService ---
+const directionsService = new google.maps.DirectionsService();
 
 async function fetchSegment(origin, destination, departUnix){
-    if(dailyRequests>=MAX_DAILY_REQUESTS){
-        throw new Error('Limit dzienny zapytań osiągnięty');
-    }
-    const cached = getFromCache(origin,destination,departUnix);
-    if(cached!==null) return cached;
-
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departure_time=${departUnix}&key=${apiKey}`;
-    dailyRequests++;
-    // AllOrigins proxy dla CORS
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-    const data = JSON.parse((await res.json()).contents);
-    if(data.status!=="OK") throw new Error(data.status);
-    const durationSec = data.routes[0].legs[0].duration_in_traffic?.value || data.routes[0].legs[0].duration.value;
-    saveToCache(origin,destination,departUnix,durationSec);
-    return durationSec;
+    return new Promise((resolve,reject)=>{
+        directionsService.route({
+            origin: origin,
+            destination: destination,
+            travelMode: google.maps.TravelMode.DRIVING,
+            drivingOptions: {
+                departureTime: new Date(departUnix*1000),
+                trafficModel: 'BEST_GUESS'
+            }
+        }, (result, status)=>{
+            if(status==='OK'){
+                const durationSec = result.routes[0].legs[0].duration_in_traffic?.value 
+                                    || result.routes[0].legs[0].duration.value;
+                resolve(durationSec);
+            } else {
+                reject(status);
+            }
+        });
+    });
 }
 
-// --- CALCULATE TOTAL TIME ---
 async function fetchRouteTotalTime(points, departUnix){
     const segments = splitRouteIntoSegments(points);
     let total = 0;
@@ -193,7 +173,7 @@ document.getElementById('calculateBtn').addEventListener('click', async()=>{
     });
 });
 
-// --- Inicjalizacja Google Autocomplete ---
+// --- Inicjalizacja Google Maps API ---
 const script = document.createElement('script');
 script.src=`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initAutocomplete`;
 script.async=true;
