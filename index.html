@@ -9,6 +9,11 @@
     .controls { margin: 15px 0; }
     .controls input, .controls button { padding: 8px; font-size: 16px; }
     #result { font-weight: bold; color: #d32f2f; margin: 15px 0; font-size: 18px; }
+    .swap-btn { 
+      background: #1976d2; color: white; border: none; border-radius: 4px; 
+      width: 40px; cursor: pointer; font-size: 18px;
+    }
+    .swap-btn:hover { background: #1565c0; }
   </style>
 </head>
 <body>
@@ -16,6 +21,7 @@
 
   <div class="controls">
     <input id="startInput" placeholder="Skąd jedziesz (adres lub miejscowość)" size="50">
+    <button class="swap-btn" id="swapBtn" title="Zamień miejscami">↔</button>
     <input id="endInput" placeholder="Dokąd jedziesz" size="50">
   </div>
 
@@ -55,6 +61,15 @@
         componentRestrictions: { country: "pl" }
       });
 
+      // <--- NOWY PRZYCISK ZAMIANY --->
+      document.getElementById("swapBtn").addEventListener("click", () => {
+        const start = document.getElementById("startInput").value;
+        const end   = document.getElementById("endInput").value;
+        document.getElementById("startInput").value = end;
+        document.getElementById("endInput").value   = start;
+      });
+      // <--- KONIEC NOWOŚCI --->
+
       document.getElementById("routeBtn").addEventListener("click", calculateRouteNow);
       document.getElementById("bestTimeBtn").addEventListener("click", findBestDepartureTime);
     }
@@ -86,9 +101,8 @@
       const [fromH, fromM] = from.split(":").map(Number);
       const [toH, toM] = to.split(":").map(Number);
 
-      // Ustawiamy wszystkie czasy na jutro – wtedy departureTime jest zawsze w przyszłości
       const base = new Date();
-      base.setDate(base.getDate() + 1); // jutro
+      base.setDate(base.getDate() + 1);
       base.setHours(0,0,0,0);
 
       let current = new Date(base);
@@ -125,13 +139,12 @@
         document.getElementById("result").innerHTML = 
           `Najlepsza godzina wyjazdu: <strong>${timeStr}</strong><br>
           Przewidywany czas w korkach: <strong>${bestDurationText}</strong>`;
-        directionsRenderer.setDirections(bestResult); // pokaż trasę dla tej godziny
+        directionsRenderer.setDirections(bestResult);
       } else {
         document.getElementById("result").innerHTML = "Nie udało się znaleźć danych dla tego przedziału.";
       }
     }
 
-    // pomocnicza funkcja zwracająca Promise z trasą dla konkretnego departureTime
     function routeWithDepartureTime(origin, destination, departureTime) {
       return new Promise((resolve) => {
         directionsService.route(
@@ -140,8 +153,8 @@
             destination,
             travelMode: google.maps.TravelMode.DRIVING,
             drivingOptions: {
-              departureTime: departureTime,        // musi być w przyszłości
-              trafficModel: "bestguess"            // historyczne + bieżące dane
+              departureTime: departureTime,
+              trafficModel: "bestguess"
             },
             unitSystem: google.maps.UnitSystem.METRIC
           },
@@ -153,7 +166,6 @@
       });
     }
 
-    // zwykła trasa (bez określonej godziny – używa bieżącej)
     function calculateRoute(departureTime) {
       const start = document.getElementById("startInput").value;
       const end = document.getElementById("endInput").value;
