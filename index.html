@@ -7,15 +7,15 @@
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  body { font-family: 'Roboto', sans-serif; margin:0; padding:0; background:#f5f5f5; }
-  header { background:#6200ee; color:white; padding:1rem; text-align:center; font-size:1.5rem; }
-  main { padding:1rem; max-width:600px; margin:auto; }
-  label { display:block; margin-top:1rem; }
-  input, button, select { width:100%; padding:0.5rem; margin-top:0.3rem; font-size:1rem; }
-  button { background:#6200ee; color:white; border:none; cursor:pointer; margin-top:1rem; }
-  .waypoint { display:flex; margin-top:0.5rem; }
-  .waypoint input { flex:1; margin-right:0.5rem; }
-  canvas { margin-top:1rem; }
+body { font-family: 'Roboto', sans-serif; margin:0; padding:0; background:#f5f5f5; }
+header { background:#6200ee; color:white; padding:1rem; text-align:center; font-size:1.5rem; }
+main { padding:1rem; max-width:600px; margin:auto; }
+label { display:block; margin-top:1rem; }
+input, button, select { width:100%; padding:0.5rem; margin-top:0.3rem; font-size:1rem; }
+button { background:#6200ee; color:white; border:none; cursor:pointer; margin-top:1rem; }
+.waypoint { display:flex; margin-top:0.5rem; }
+.waypoint input { flex:1; margin-right:0.5rem; }
+canvas { margin-top:1rem; }
 </style>
 </head>
 <body>
@@ -91,7 +91,7 @@ async function fetchSegment(origin, destination, departUnix){
 
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&departure_time=${departUnix}&key=${apiKey}`;
     dailyRequests++;
-    // cross-origin workaround
+    // AllOrigins proxy dla CORS
     const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
     const data = JSON.parse((await res.json()).contents);
     if(data.status!=="OK") throw new Error(data.status);
