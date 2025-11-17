@@ -2,39 +2,39 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <title>Najlepszy i najwcześniejszy dojazd do domu</title>
+  <title>Najwcześniejszy dojazd – naprawione 100%</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background:#f9f9fb; }
     .controls { padding:20px; background:white; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.1); margin-bottom:20px; }
     input, button { padding:12px 16px; margin:5px; font-size:16px; border-radius:8px; }
     .swap-btn { background:#1565c0; color:white; border:none; width:50px; font-size:20px; cursor:pointer; }
-    #result { padding:25px; border-radius:12px; margin:20px 0; font-size:21px; text-align:center; font-weight:bold; }
+    #result { padding:25px; border-radius:12px; margin:20px 0; font-size:21px; text-align:center; font-weight:bold; line-height:1.5; }
     #map { height:500px; border-radius:12px; overflow:hidden; box-shadow:0 4px 20px rgba(0,0,0,0.15); margin-bottom:20px; }
     #chartContainer { padding:20px; background:white; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body>
-  <h2 style="text-align:center;color:#1565c0;">Znajdź najwcześniejszy dojazd do domu (nawet jeśli czas taki sam)</h2>
+  <h2 style="text-align:center;color:#1565c0;">Najwcześniejszy dojazd do domu – nawet przy takich samych czasach</h2>
 
   <div class="controls">
-    <input id="startInput" placeholder="Skąd (praca)" size="50" value="Warszawa, Aleje Jerozolimskie">
+    <input id="startInput" placeholder="Skąd" size="50" value="Skąd jedziesz?">
     <button class="swap-btn" id="swapBtn">Swap</button>
-    <input id="endInput" placeholder="Dokąd (dom)" size="50" value="Legionowo">
+    <input id="endInput" placeholder="Dokąd" size="50" value="Dokąd zmierzasz?">
   </div>
 
   <div class="controls">
-    <strong>Mogę wyjechać od:</strong>
-    <input type="time" id="departFrom" value="15:00">
-    <strong>do:</strong>
+    <strong>Od:</strong>
+    <input type="time" id="departFrom" value="14:00">
+    <strong>Do:</strong>
     <input type="time" id="departTo" value="19:00">
 
     <button id="bestTimeBtn" style="background:#1b5e20;color:white;border:none;padding:15px 30px;font-size:18px;">
-      Znajdź najwcześniejszy dojazd do domu!
+      Znajdź najwcześniejszy dojazd!
     </button>
   </div>
 
-  <div id="result">Kliknij przycisk – pokażę Ci najlepszą (i najwcześniejszą) godzinę wyjazdu</div>
+  <div id="result">Kliknij przycisk – pokażę Ci najwcześniejszą możliwą godzinę wyjazdu</div>
   <div id="map"></div>
   <div id="chartContainer"><canvas id="trafficChart"></canvas></div>
 
@@ -57,25 +57,18 @@
         document.getElementById("endInput").value = a;
       };
 
-      document.getElementById("bestTimeBtn").onclick = findEarliestArrivalWithShortestTime;
+      document.getElementById("bestTimeBtn").onclick = findEarliestPossibleArrival;
     }
 
-    async function findEarliestArrivalWithShortestTime() {
+    async function findEarliestPossibleArrival() {
       const start = document.getElementById("startInput").value.trim();
       const end   = document.getElementById("endInput").value.trim();
       if (!start || !end) return alert("Wpisz oba adresy!");
 
-      document.getElementById("result").innerHTML = "Analizuję wszystkie wyjazdy co 10 minut…";
+      document.getElementById("result").innerHTML = "Trwa analiza (co 10 minut)…";
 
-      const times = [];
-      const durations = [];
-      const departureDates = [];
+      const results = []; // tu trzymamy wszystkie dobre wyniki
 
-      let shortestTimeSec = Infinity;
-      let earliestDepartureWithShortest = null;
-      let bestResult = null;
-
-      // jutro – zawsze w przyszłości
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       tomorrow.setHours(0, 0, 0, 0);
@@ -89,54 +82,54 @@
       endTime.setHours(h2, m2);
 
       while (current <= endTime) {
-        const label = current.toLocaleTimeString("pl-PL", { hour:"2-digit", minute:"2-digit" });
-
         const result = await getRouteWithTraffic(current);
         if (result && result.routes?.[0]?.legs?.[0]?.duration_in_traffic) {
           const sec = result.routes[0].legs[0].duration_in_traffic.value;
-          const min = Math.round(sec / 60);
-
-          times.push(label);
-          durations.push(min);
-          departureDates.push(new Date(current));
-
-          // Logika: najpierw szukamy najkrótszego czasu
-          if (sec < shortestTimeSec) {
-            shortestTimeSec = sec;
-            earliestDepartureWithShortest = new Date(current);
-            bestResult = result;
-          } 
-          // Jeśli czas taki sam jak najlepszy – bierzemy wcześniejszy wyjazd
-          else if (sec === shortestTimeSec && current < earliestDepartureWithShortest) {
-            earliestDepartureWithShortest = new Date(current);
-            bestResult = result;
-          }
-        } else {
-          times.push(label);
-          durations.push(null);
-          departureDates.push(null);
+          results.push({
+            departure: new Date(current),
+            durationSec: sec,
+            durationMin: Math.round(sec / 60),
+            result: result
+          });
         }
-
         current.setMinutes(current.getMinutes() + 10);
       }
 
-      // WYNIK
-      if (earliestDepartureWithShortest) {
-        const wyjazd = earliestDepartureWithShortest.toLocaleTimeString("pl-PL", { hour:"2-digit", minute:"2-digit" });
-        const minuty = Math.round(shortestTimeSec / 60);
-
-        document.getElementById("result").innerHTML = `
-          <div style="background:#e8f5e9;color:#1b5e20;padding:25px;border-radius:12px;">
-            WYJEDŹ NAJWCZEŚNIEJ O <strong style="font-size:32px;color:#1b5e20;">${wyjazd}</strong><br><br>
-            Dojedziesz w <strong>${minuty} minut</strong> → będziesz w domu najwcześniej!<br>
-            <small>(wybrano najwcześniejszą godzinę spośród tych z najkrótszym czasem przejazdu)</small>
-          </div>`;
-        directionsRenderer.setDirections(bestResult);
-      } else {
-        document.getElementById("result").innerHTML = "<div style='background:#ffebee;color:#c62828;padding:20px;border-radius:12px;'>Brak danych o korkach na tej trasie</div>";
+      if (results.length === 0) {
+        document.getElementById("result").innerHTML = "<div style='background:#ffebee;color:#c62828;padding:20px;border-radius:12px;'>Brak danych o korkach</div>";
+        return;
       }
 
-      drawChart(times, durations, earliestDepartureWithShortest);
+      // 1. Znajdujemy absolutnie najkrótszy czas
+      const minDuration = Math.min(...results.map(r => r.durationSec));
+
+      // 2. Wszystkie wyniki które są w zakresie ±30 sekund od minimum (czyli "takie same")
+      const toleranceSec = 30;
+      const candidates = results.filter(r => r.durationSec <= minDuration + toleranceSec);
+
+      // 3. Z nich bierzemy ten z NAJWCZEŚNIEJSZYM wyjazdem
+      candidates.sort((a, b) => a.departure - b.departure);
+      const winner = candidates[0];
+
+      // Pokazujemy wynik
+      const wyjazd = winner.departure.toLocaleTimeString("pl-PL", { hour:"2-digit", minute:"2-digit" });
+      const minuty = winner.durationMin;
+
+      document.getElementById("result").innerHTML = `
+        <div style="background:#e8f5e9;color:#1b5e20;padding:25px;border-radius:12px;">
+          WYJEDŹ O <strong style="font-size:34px;color:#1b5e20;">${wyjazd}</strong><br><br>
+          Dojedziesz w ok. <strong>${minuty} minut</strong><br>
+          <small>To jest najwcześniejsza godzina spośród wszystkich z najkrótszym czasem przejazdu</small>
+        </div>`;
+
+      directionsRenderer.setDirections(winner.result);
+
+      // Wykres
+      const labels = results.map(r => r.departure.toLocaleTimeString("pl-PL", { hour:"2-digit", minute:"2-digit" }));
+      const data = results.map(r => r.durationMin);
+      const bestIdx = results.findIndex(r => r.departure.getTime() === winner.departure.getTime());
+
+      drawChart(labels, data, bestIdx);
     }
 
     function getRouteWithTraffic(departureTime) {
@@ -156,11 +149,9 @@
       });
     }
 
-    function drawChart(labels, data, bestDeparture) {
+    function drawChart(labels, data, bestIdx) {
       const ctx = document.getElementById('trafficChart').getContext('2d');
       if (chart) chart.destroy();
-
-      const bestIdx = bestDeparture ? labels.indexOf(bestDeparture.toLocaleTimeString("pl-PL", {hour:"2-digit",minute:"2-digit"})) : -1;
 
       chart = new Chart(ctx, {
         type: 'line',
@@ -173,15 +164,14 @@
             backgroundColor: 'rgba(211,47,47,0.15)',
             fill: true,
             tension: 0.4,
-            pointBackgroundColor: data.map((_,i) => i===bestIdx ? '#1b5e20' : '#d32f2f'),
-            pointRadius: data.map((_,i) => i===bestIdx ? 14 : 6),
-            pointHoverRadius: 10
+            pointBackgroundColor: data.map((_, i) => i === bestIdx ? '#1b5e20' : '#d32f2f'),
+            pointRadius: data.map((_, i) => i === bestIdx ? 14 : 6),
           }]
         },
         options: {
           responsive: true,
           plugins: {
-            title: { display: true, text: 'Czas przejazdu co 10 minut – zielona kropka = najwcześniejszy dojazd do domu', font: { size: 18 } }
+            title: { display: true, text: 'Zielona kropka = najwcześniejszy dojazd przy najkrótszym czasie', font: { size: 18 } }
           },
           scales: { y: { title: { display: true, text: 'Minuty w trasie' } } }
         }
