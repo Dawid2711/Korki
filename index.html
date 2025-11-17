@@ -32,8 +32,8 @@ canvas { margin-top:1rem; }
 <button id="addWaypointBtn">Dodaj punkt pośredni</button>
 
 <label>Okno czasowe:</label>
-<input type="time" id="fromTime" value="15:00">
-<input type="time" id="toTime" value="17:00">
+<input type="time" id="fromTime" value="19:00">
+<input type="time" id="toTime" value="20:00">
 
 <label>Krok w minutach:</label>
 <input type="number" id="stepMin" value="10">
@@ -51,7 +51,7 @@ const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0";
 let directionsService;
 let originPlace = null;
 let destinationPlace = null;
-let waypointPlaces = []; // tablica obiektów PlaceResult
+let waypointPlaces = [];
 
 // --- AUTOCOMPLETE Z GEOLOCALIZACJĄ ---
 function initAutocomplete() {
@@ -117,8 +117,7 @@ document.getElementById('addWaypointBtn').addEventListener('click', () => {
     btn.textContent = "X";
     btn.type = "button";
     btn.onclick = () => {
-        const index = waypointPlaces.findIndex(p => p.input === input);
-        if(index!==-1) waypointPlaces.splice(index,1);
+        waypointPlaces = waypointPlaces.filter(p => p.input !== input);
         div.remove();
     };
 
@@ -130,10 +129,10 @@ document.getElementById('addWaypointBtn').addEventListener('click', () => {
     const autocomplete = new google.maps.places.Autocomplete(input, options);
     autocomplete.addListener('place_changed', () => {
         const place = autocomplete.getPlace();
-        if(!place.geometry) {
+        if(!place.geometry){
             alert("Wybierz miejsce z listy podpowiedzi.");
             input.value = "";
-            waypointPlaces = waypointPlaces.filter(p => p.input !== input);
+            waypointPlaces = waypointPlaces.filter(p=>p.input!==input);
         } else {
             const existingIndex = waypointPlaces.findIndex(p=>p.input===input);
             if(existingIndex!==-1) waypointPlaces[existingIndex].place = place.formatted_address;
@@ -142,24 +141,37 @@ document.getElementById('addWaypointBtn').addEventListener('click', () => {
     });
 });
 
-// --- FETCH SEGMENT (DirectionsService) ---
+// --- FETCH SEGMENT Z TIMEOUT ---
 async function fetchSegment(origin,destination,departUnix){
     return new Promise((resolve,reject)=>{
+        let finished = false;
+        const timer = setTimeout(()=>{
+            if(!finished){
+                finished=true;
+                console.warn("Timeout segmentu", origin,destination);
+                resolve(null);
+            }
+        },5000); // 5 sekund timeout
+
         directionsService.route({
             origin,
             destination,
             travelMode: google.maps.TravelMode.DRIVING,
-            drivingOptions: {
+            drivingOptions:{
                 departureTime: new Date(departUnix*1000),
-                trafficModel: 'BEST_GUESS'
+                trafficModel:'BEST_GUESS'
             }
         }, (result,status)=>{
+            if(finished) return;
+            finished=true;
+            clearTimeout(timer);
             if(status==='OK'){
-                const durationSec = result.routes[0].legs[0].duration_in_traffic?.value 
+                const durationSec = result.routes[0].legs[0].duration_in_traffic?.value
                                     || result.routes[0].legs[0].duration.value;
                 resolve(durationSec);
             } else {
-                reject(status);
+                console.warn("Błąd segmentu",origin,destination,status);
+                resolve(null);
             }
         });
     });
@@ -168,27 +180,28 @@ async function fetchSegment(origin,destination,departUnix){
 async function fetchRouteTotalTime(points,departUnix){
     let total=0;
     for(let i=0;i<points.length-1;i++){
-        total+= await fetchSegment(points[i],points[i+1],departUnix);
+        const segTime = await fetchSegment(points[i],points[i+1],departUnix);
+        if(segTime!==null) total+=segTime;
     }
     return total;
 }
 
 // --- EVENT LISTENER CALCULATE ---
 document.getElementById('calculateBtn').addEventListener('click', async ()=>{
-    if(!originPlace || !destinationPlace) {
+    if(!originPlace || !destinationPlace){
         alert("Wybierz punkt startowy i końcowy z listy podpowiedzi.");
         return;
     }
 
     const waypoints = waypointPlaces.map(p=>p.place).filter(p=>p);
-    const routePoints = [originPlace, ...waypoints, destinationPlace];
+    const routePoints = [originPlace,...waypoints,destinationPlace];
 
     const fromTime = document.getElementById('fromTime').value;
     const toTime = document.getElementById('toTime').value;
     const stepMin = parseInt(document.getElementById('stepMin').value);
 
     const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = 'Trwa obliczanie...';
+    resultsDiv.innerHTML='Trwa obliczanie...';
 
     const chartLabels = [];
     const chartData = [];
@@ -198,13 +211,13 @@ document.getElementById('calculateBtn').addEventListener('click', async ()=>{
     const toDate = new Date();
     toDate.setHours(...toTime.split(':'));
 
-    for(let t=fromDate.getTime(); t<=toDate.getTime(); t+=stepMin*60*1000){
+    for(let t=fromDate.getTime(); t<=toDate.getTime(); t+=stepMin*60000){
         const departUnix = Math.floor(t/1000);
         try{
             const totalSec = await fetchRouteTotalTime(routePoints,departUnix);
             const minLabel = `${Math.floor(t/3600000)}:${("0"+Math.floor((t/60000)%60)).slice(-2)}`;
             chartLabels.push(minLabel);
-            chartData.push(Math.round(totalSec/60));
+            chartData.push(totalSec?Math.round(totalSec/60):null);
         }catch(err){
             console.error(err);
             chartLabels.push('err');
@@ -212,10 +225,10 @@ document.getElementById('calculateBtn').addEventListener('click', async ()=>{
         }
     }
 
-    resultsDiv.innerHTML = `Najkrótszy czas: ${Math.min(...chartData)} min`;
+    resultsDiv.innerHTML=`Najkrótszy czas: ${Math.min(...chartData.filter(d=>d!==null))} min`;
 
     const ctx = document.getElementById('chart').getContext('2d');
-    new Chart(ctx, {
+    new Chart(ctx,{
         type:'line',
         data:{
             labels: chartLabels,
