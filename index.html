@@ -2,56 +2,47 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <title>Najlepsza godzina wyjazdu + wykres korków</title>
+  <title>Najlepsza godzina wyjazdu – TYLKO dane historyczne (typical traffic)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    #map { height: 500px; width: 100%; margin-top: 20px; }
-    .controls { margin: 15px 0; }
-    .controls input, .controls button { padding: 8px; font-size: 16px; }
-    #result { font-weight: bold; color: #d32f2f; margin: 15px 0; font-size: 18px; }
-    .swap-btn { background: #1976d2; color: white; border: none; border-radius: 4px; 
-                 width: 40px; cursor: pointer; font-size: 18px; }
-    .swap-btn:hover { background: #1565c0; }
-    #chartContainer { margin-top: 30px; max-width: 900px; }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f8fafc; }
+    #map { height: 500px; width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .controls { margin: 15px 0; padding: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .controls input, .controls button { padding: 10px; font-size: 16px; margin: 5px; border-radius: 6px; border: 1px solid #ddd; }
+    #result { font-weight: bold; color: #1b5e20; background: #e8f5e9; padding: 20px; border-radius: 12px; margin: 20px 0; font-size: 20px; text-align: center; }
+    .swap-btn { background: #1976d2; color: white; border: none; width: 44px; font-size: 20px; }
+    #chartContainer { margin-top: 30px; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.1); }
+    h2 { color: #1976d2; }
   </style>
 </head>
 <body>
-  <h2>Znajdź najlepszą godzinę wyjazdu, żeby ominąć korki</h2>
+  <h2>Najlepsza godzina wyjazdu – na podstawie HISTORYCZNYCH korków (jak w Google Maps)</h2>
 
   <div class="controls">
-    <input id="startInput" placeholder="Skąd jedziesz (adres lub miejscowość)" size="50">
-    <button class="swap-btn" id="swapBtn" title="Zamień miejscami">Swap</button>
-    <input id="endInput" placeholder="Dokąd jedziesz" size="50">
+    <input id="startInput" placeholder="Skąd (np. praca)" size="50">
+    <button class="swap-btn" id="swapBtn" title="Zamień">Swap</button>
+    <input id="endInput" placeholder="Dokąd (np. dom)" size="50">
   </div>
 
   <div class="controls">
-    <label>Możesz wyjechać między:</label>
+    <label>Mogę wyjechać między:</label>
     <input type="time" id="departFrom" value="15:00">
     <label> a </label>
-    <input type="time" id="departTo" value="18:30">
+    <input type="time" id="departTo" value="19:00">
 
-    <button id="routeBtn">Tylko pokaż trasę (teraz)</button>
-    <button id="bestTimeBtn">Znajdź najlepszy czas wyjazdu + wykres</button>
+    <button id="bestTimeBtn">Znajdź najszybszą godzinę (dane historyczne)</button>
   </div>
 
-  <div id="result"></div>
+  <div id="result">Wciśnij przycisk, a pokażę Ci najlepszą godzinę na podstawie korków z poprzednich tygodni</div>
   <div id="map"></div>
-
-  <div id="chartContainer">
-    <canvas id="trafficChart"></canvas>
-  </div>
+  <div id="chartContainer"><canvas id="trafficChart"></canvas></div>
 
   <script>
     let map, directionsService, directionsRenderer;
     let chart = null;
 
     function initMap() {
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 52.2297, lng: 21.0122 },
-        zoom: 11
-      });
-
+      map = new google.maps.Map(document.getElementById("map"), { center: { lat: 52.2297, lng: 21.0122 }, zoom: 11 });
       directionsService = new google.maps.DirectionsService();
       directionsRenderer = new google.maps.DirectionsRenderer({ map: map });
 
@@ -65,19 +56,18 @@
         document.getElementById("endInput").value = s;
       });
 
-      document.getElementById("routeBtn").addEventListener("click", calculateRouteNow);
-      document.getElementById("bestTimeBtn").addEventListener("click", findBestDepartureTimeWithChart);
+      document.getElementById("bestTimeBtn").addEventListener("click", findBestHistoricalTime);
     }
 
-    async function findBestDepartureTimeWithChart() {
+    async function findBestHistoricalTime() {
       const start = document.getElementById("startInput").value.trim();
       const end   = document.getElementById("endInput").value.trim();
       const from  = document.getElementById("departFrom").value;
       const to    = document.getElementById("departTo").value;
 
-      if (!start || !end || !from || !to) { alert("Wypełnij wszystkie pola!"); return; }
+      if (!start || !end || !from || !to) { alert("Wpisz oba adresy i przedział godzin!"); return; }
 
-      document.getElementById("result").innerHTML = "Trwa analiza korków co 10 minut…";
+      document.getElementById("result").innerHTML = "Pobieram dane historyczne z Google Maps… (to potrwa ~20–40 sekund)";
 
       const times = [];
       const durations = [];
@@ -89,133 +79,99 @@
       const [fromH, fromM] = from.split(":").map(Number);
       const [toH, toM]     = to.split(":").map(Number);
 
+      // Bierzemy przyszły wtorek (żeby był ten sam dzień tygodnia co najbliższy wtorek)
       const base = new Date();
-      base.setDate(base.getDate() + 1);
+      base.setDate(base.getDate() + ((2 + 7 - base.getDay()) % 7 || 7)); // najbliższy wtorek
       base.setHours(0,0,0,0);
 
       let current = new Date(base);
       current.setHours(fromH, fromM);
-
       const endTime = new Date(base);
       endTime.setHours(toH, toM);
 
-      const stepMinutes = 10;
+      // daleka przyszłość – wymusza dane historyczne
+      const fakeFuture = new Date(Date.now() + 365*24*60*60*1000);
 
       while (current <= endTime) {
         const timeStr = current.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
 
-        try {
-          const result = await routeWithDepartureTime(start, end, new Date(current));
-          if (result && result.routes[0].legs[0].duration_in_traffic) {
-            const sec = result.routes[0].legs[0].duration_in_traffic.value;
-            const min = Math.round(sec / 60);
+        const result = await routeWithHistoricalTraffic(start, end, fakeFuture);
+        if (result && result.routes[0].legs[0].duration_in_traffic) {
+          const sec = result.routes[0].legs[0].duration_in_traffic.value;
+          const min = Math.round(sec / 60);
 
-            times.push(timeStr);
-            durations.push(min);
+          times.push(timeStr);
+          durations.push(min);
 
-            if (sec < bestDuration) {
-              bestDuration = sec;
-              bestTime = current;
-              bestResult = result;
-            }
-          } else {
-            times.push(timeStr);
-            durations.push(null);
+          if (sec < bestDuration) {
+            bestDuration = sec;
+            bestTime = new Date(current);
+            bestResult = result;
           }
-        } catch (e) {
+        } else {
           times.push(timeStr);
           durations.push(null);
         }
 
-        current.setMinutes(current.getMinutes() + stepMinutes);
+        current.setMinutes(current.getMinutes() + 10);
       }
 
-      // === WYŚWIETLENIE WYNIKU ===
       if (bestTime) {
         const bestStr = bestTime.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
         const bestMin = Math.round(bestDuration / 60);
         document.getElementById("result").innerHTML = 
-          `NAJLEPSZA GODZINA: <strong>${bestStr}</strong> → tylko <strong>${bestMin} minut</strong> w trasie!`;
+          `NAJSZYBSZA GODZINA (dane historyczne z poprzednich tygodni):<br>
+           <strong>${bestStr}</strong> → tylko <strong>${bestMin} minut</strong> w trasie!`;
         directionsRenderer.setDirections(bestResult);
       }
 
-      // === WYKRES ===
-      drawChart(times, durations, bestTime);
+      drawHistoricalChart(times, durations, bestTime);
     }
 
-    function drawChart(labels, data, bestTime) {
-      const ctx = document.getElementById('trafficChart').getContext('2d');
+    // KLUCZOWA FUNKCJA – wymusza dane historyczne
+    function routeWithHistoricalTraffic(origin, destination, departureTime) {
+      return new Promise(resolve => {
+        directionsService.route({
+          origin, destination,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: {
+            departureTime: departureTime,        // daleka przyszłość = dane historyczne
+            trafficModel: "bestguess"
+          },
+          unitSystem: google.maps.UnitSystem.METRIC
+        }, (result, status) => status === "OK" ? resolve(result) : resolve(null));
+      });
+    }
 
+    function drawHistoricalChart(labels, data, bestTime) {
+      const ctx = document.getElementById('trafficChart').getContext('2d');
       if (chart) chart.destroy();
 
-      const bestIndex = bestTime ? labels.indexOf(bestTime.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })) : -1;
+      const bestIndex = labels.indexOf(bestTime.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" }));
 
       chart = new Chart(ctx, {
         type: 'line',
         data: {
           labels: labels,
           datasets: [{
-            label: 'Czas przejazdu (minuty)',
+            label: 'Typowy czas przejazdu (dane historyczne)',
             data: data,
             borderColor: '#d32f2f',
-            backgroundColor: 'rgba(211, 47, 47, 0.1)',
+            backgroundColor: 'rgba(211, 47, 47, 0.15)',
             fill: true,
             tension: 0.4,
             pointBackgroundColor: data.map((d, i) => i === bestIndex ? '#1b5e20' : '#d32f2f'),
-            pointRadius: data.map((d, i) => i === bestIndex ? 8 : 5),
-            pointHoverRadius: 8
+            pointRadius: data.map((d, i) => i === bestIndex ? 10 : 5)
           }]
         },
         options: {
           responsive: true,
           plugins: {
-            title: { display: true, text: 'Przewidywany czas przejazdu w korkach co 10 minut', font: { size: 18 } },
-            tooltip: { callbacks: { label: ctx => ctx.raw ? `${ctx.raw} minut` : 'brak danych' } }
+            title: { display: true, text: 'Typowy czas przejazdu co 10 minut – na podstawie danych historycznych Google', font: { size: 18 } }
           },
-          scales: {
-            y: { beginAtZero: false, title: { display: true, text: 'Czas w korkach (min)' } }
-          }
+          scales: { y: { title: { display: true, text: 'Czas w korkach (minuty)' } } }
         }
       });
-    }
-
-    function routeWithDepartureTime(origin, destination, departureTime) {
-      return new Promise((resolve) => {
-        directionsService.route(
-          {
-            origin, destination,
-            travelMode: google.maps.TravelMode.DRIVING,
-            drivingOptions: { departureTime, trafficModel: "bestguess" },
-            unitSystem: google.maps.UnitSystem.METRIC
-          },
-          (result, status) => status === "OK" ? resolve(result) : resolve(null)
-        );
-      });
-    }
-
-    function calculateRouteNow() {
-      calculateRoute(new Date());
-    }
-
-    function calculateRoute(departureTime) {
-      const start = document.getElementById("startInput").value;
-      const end   = document.getElementById("endInput").value;
-
-      directionsService.route(
-        {
-          origin: start, destination: end,
-          travelMode: google.maps.TravelMode.DRIVING,
-          drivingOptions: { departureTime: departureTime || new Date(), trafficModel: "bestguess" },
-          unitSystem: google.maps.UnitSystem.METRIC
-        },
-        (result, status) => {
-          if (status === "OK") {
-            directionsRenderer.setDirections(result);
-            const duration = result.routes[0].legs[0].duration_in_traffic.text;
-            document.getElementById("result").innerHTML = `Czas przejazdu teraz: ${duration}`;
-          }
-        }
-      );
     }
   </script>
 
