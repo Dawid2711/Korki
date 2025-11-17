@@ -3,50 +3,83 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Test AutocompleteService</title>
+<title>Traffic Advisor</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body { font-family: Arial, sans-serif; padding: 2rem; }
-input { width: 100%; padding: 0.5rem; margin-bottom: 0.2rem; }
-ul.suggestions { list-style: none; padding: 0; margin: 0; border: 1px solid #ccc; max-height: 150px; overflow-y: auto; }
-ul.suggestions li { padding: 0.5rem; cursor: pointer; }
-ul.suggestions li:hover { background: #eee; }
+body { font-family: 'Roboto', sans-serif; margin:0; padding:0; background:#f5f5f5; }
+header { background:#6200ee; color:white; padding:1rem; text-align:center; font-size:1.5rem; }
+main { padding:1rem; max-width:600px; margin:auto; }
+label { display:block; margin-top:1rem; }
+input, button { width:100%; padding:0.5rem; margin-top:0.3rem; font-size:1rem; }
+button { background:#6200ee; color:white; border:none; cursor:pointer; margin-top:1rem; }
+.waypoint { display:flex; margin-top:0.5rem; }
+.waypoint input { flex:1; margin-right:0.5rem; }
+canvas { margin-top:1rem; }
+ul.suggestions { list-style:none; padding:0; margin:0; border:1px solid #ccc; max-height:150px; overflow-y:auto; position:absolute; background:white; z-index:1000; }
+ul.suggestions li { padding:0.5rem; cursor:pointer; }
+ul.suggestions li:hover { background:#eee; }
+.position-relative { position:relative; }
 </style>
 </head>
 <body>
+<header>Traffic Advisor</header>
+<main>
 
-<h2>Test AutocompleteService</h2>
+<div class="position-relative">
 <label>Punkt startowy:</label>
 <input id="originInput" placeholder="Skąd jedziesz">
 <ul id="originList" class="suggestions"></ul>
+</div>
 
+<div class="position-relative">
 <label>Punkt końcowy:</label>
 <input id="destinationInput" placeholder="Dokąd jedziesz">
 <ul id="destinationList" class="suggestions"></ul>
+</div>
+
+<div id="waypointsContainer"></div>
+<button id="addWaypointBtn">Dodaj punkt pośredni</button>
+
+<label>Okno czasowe:</label>
+<input type="time" id="fromTime" value="19:00">
+<input type="time" id="toTime" value="20:00">
+
+<label>Krok w minutach:</label>
+<input type="number" id="stepMin" value="10">
+
+<button id="calculateBtn">Oblicz najlepszy czas wyjścia</button>
+
+<div id="results"></div>
+<canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-let autocompleteService;
+const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0";
+let directionsService, autocompleteService;
+let originPlace = null, destinationPlace = null, waypointPlaces = [];
+const cacheExpiration = 24*60*60*1000; // 24h
 
-function initAutocompleteService() {
+window.initTrafficAdvisor = function() {
+    directionsService = new google.maps.DirectionsService();
     autocompleteService = new google.maps.places.AutocompleteService();
 
-    function setupInput(inputId, listId) {
+    function setupAutocomplete(inputId,listId,callback){
         const input = document.getElementById(inputId);
         const list = document.getElementById(listId);
 
-        input.addEventListener('input', () => {
-            const value = input.value;
-            if(!value) { list.innerHTML=''; return; }
-
-            autocompleteService.getPlacePredictions({ input: value, componentRestrictions:{country:'pl'} }, (predictions,status)=>{
+        input.addEventListener('input',()=>{
+            const val = input.value;
+            if(!val){ list.innerHTML=''; return; }
+            autocompleteService.getPlacePredictions({input:val,componentRestrictions:{country:'pl'}}, (predictions,status)=>{
                 list.innerHTML='';
                 if(status==='OK' && predictions){
                     predictions.forEach(p=>{
-                        const li = document.createElement('li');
-                        li.textContent = p.description;
+                        const li=document.createElement('li');
+                        li.textContent=p.description;
                         li.onclick = ()=>{
-                            input.value = p.description;
+                            input.value=p.description;
                             list.innerHTML='';
-                            console.log(`Wybrano ${inputId}:`, p.description);
+                            callback(p.description);
                         };
                         list.appendChild(li);
                     });
@@ -55,13 +88,135 @@ function initAutocompleteService() {
         });
     }
 
-    setupInput('originInput','originList');
-    setupInput('destinationInput','destinationList');
+    setupAutocomplete('originInput','originList', val=>originPlace=val);
+    setupAutocomplete('destinationInput','destinationList', val=>destinationPlace=val);
+};
+
+// --- DODAWANIE PUNKTÓW POŚREDNICH ---
+const waypointsContainer = document.getElementById('waypointsContainer');
+document.getElementById('addWaypointBtn').addEventListener('click', ()=>{
+    const div = document.createElement('div'); div.className='waypoint position-relative';
+    const input = document.createElement('input'); input.placeholder="Punkt pośredni";
+    const ul = document.createElement('ul'); ul.className='suggestions';
+    const btn = document.createElement('button'); btn.textContent="X"; btn.type="button";
+    btn.onclick = ()=>{ waypointPlaces=waypointPlaces.filter(p=>p.input!==input); div.remove(); };
+    div.appendChild(input); div.appendChild(btn); div.appendChild(ul); waypointsContainer.appendChild(div);
+
+    const setupWaypointAutocomplete = (inp, list)=>{
+        inp.addEventListener('input', ()=>{
+            const val = inp.value;
+            if(!val){ list.innerHTML=''; return; }
+            new google.maps.places.AutocompleteService().getPlacePredictions({input:val,componentRestrictions:{country:'pl'}}, (predictions,status)=>{
+                list.innerHTML='';
+                if(status==='OK' && predictions){
+                    predictions.forEach(p=>{
+                        const li=document.createElement('li');
+                        li.textContent=p.description;
+                        li.onclick = ()=>{
+                            inp.value=p.description;
+                            list.innerHTML='';
+                            const existing = waypointPlaces.findIndex(wp=>wp.input===inp);
+                            if(existing!==-1) waypointPlaces[existing].place=p.description;
+                            else waypointPlaces.push({input:inp,place:p.description});
+                        };
+                        list.appendChild(li);
+                    });
+                }
+            });
+        });
+    };
+    setupWaypointAutocomplete(input,ul);
+});
+
+// --- CACHE ---
+function getCacheKey(origin,destination,departUnix){ return `${origin}|${destination}|${departUnix}`; }
+function getFromCache(origin,destination,departUnix){
+    const cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
+    const key = getCacheKey(origin,destination,departUnix);
+    const item = cache[key];
+    if(item && (Date.now()-item.timestamp)<cacheExpiration) return item.durationInTraffic;
+    return null;
 }
+function saveToCache(origin,destination,departUnix,durationSec){
+    const cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
+    cache[getCacheKey(origin,destination,departUnix)]={durationInTraffic:durationSec,timestamp:Date.now()};
+    localStorage.setItem('routesCache',JSON.stringify(cache));
+}
+
+// --- Fetch segment ---
+async function fetchSegment(origin,destination,departUnix){
+    const cached = getFromCache(origin,destination,departUnix);
+    if(cached!==null) return cached;
+
+    return new Promise(resolve=>{
+        directionsService.route({
+            origin,destination,travelMode:google.maps.TravelMode.DRIVING,
+            drivingOptions:{departureTime:new Date(departUnix*1000)}
+        }, (result,status)=>{
+            if(status==='OK'){
+                const durationSec = result.routes[0].legs[0].duration_in_traffic?.value || result.routes[0].legs[0].duration.value;
+                saveToCache(origin,destination,departUnix,durationSec);
+                resolve(durationSec);
+            } else { console.warn("Błąd segmentu",origin,destination,status); resolve(null); }
+        });
+    });
+}
+
+// --- Fetch całej trasy ---
+async function fetchRouteTotalTimeParallel(points, departUnix){
+    const promises=[];
+    for(let i=0;i<points.length-1;i++) promises.push(fetchSegment(points[i],points[i+1],departUnix));
+    const segmentTimes = await Promise.all(promises);
+    return segmentTimes.filter(s=>s!==null).reduce((a,b)=>a+b,0);
+}
+
+// --- Event calculate ---
+document.getElementById('calculateBtn').addEventListener('click', async ()=>{
+    if(!originPlace || !destinationPlace){ alert("Wybierz start i koniec z listy podpowiedzi."); return; }
+    const waypoints = waypointPlaces.map(p=>p.place).filter(p=>p);
+    const routePoints = [originPlace,...waypoints,destinationPlace];
+
+    const fromTime = document.getElementById('fromTime').value;
+    const toTime = document.getElementById('toTime').value;
+    const stepMin = parseInt(document.getElementById('stepMin').value);
+
+    const resultsDiv=document.getElementById('results'); resultsDiv.innerHTML='Trwa obliczanie...';
+    const chartLabels=[]; const chartData=[];
+
+    const fromDate=new Date(); fromDate.setHours(...fromTime.split(':'));
+    const toDate=new Date(); toDate.setHours(...toTime.split(':'));
+
+    const timePoints=[];
+    for(let t=fromDate.getTime();t<=toDate.getTime();t+=stepMin*60000) timePoints.push(Math.floor(t/1000));
+
+    const results=[];
+    for(const departUnix of timePoints){
+        const totalSec = await fetchRouteTotalTimeParallel(routePoints,departUnix);
+        results.push(totalSec);
+    }
+
+    results.forEach((totalSec,i)=>{
+        const t=new Date(timePoints[i]*1000);
+        const minLabel = `${("0"+t.getHours()).slice(-2)}:${("0"+t.getMinutes()).slice(-2)}`;
+        chartLabels.push(minLabel);
+        chartData.push(totalSec?Math.round(totalSec/60):null);
+    });
+
+    const validTimes = chartData.filter(d=>d!==null);
+    resultsDiv.innerHTML=`Najkrótszy czas: ${Math.min(...validTimes)} min`;
+
+    const ctx=document.getElementById('chart').getContext('2d');
+    new Chart(ctx,{
+        type:'line',
+        data:{labels:chartLabels,datasets:[{label:'Czas przejazdu [min]',data:chartData,borderColor:'#6200ee',backgroundColor:'rgba(98,0,238,0.2)',fill:true,tension:0.3}]},
+        options:{responsive:true,plugins:{legend:{display:true}}}
+    });
+});
 
 </script>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initAutocompleteService" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=TU_WKLEJ_SWÓJ_API_KEY&libraries=places&callback=initTrafficAdvisor" async defer></script>
 
+</main>
 </body>
 </html>
