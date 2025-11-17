@@ -44,37 +44,26 @@ canvas { margin-top:1rem; }
 <canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-// --- TWÓJ GOOGLE API KEY ---
-const apiKey = "AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0";
+const apiKey = AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0";
 
-// --- DirectionsService ---
 let directionsService;
 let originPlace = null;
 let destinationPlace = null;
 let waypointPlaces = [];
+const cacheExpiration = 24*60*60*1000; // 24h
 
-// --- AUTOCOMPLETE Z GEOLOCALIZACJĄ ---
+// --- Autocomplete z geolokalizacją ---
 function initAutocomplete() {
     directionsService = new google.maps.DirectionsService();
-
-    const options = {
-        types: ['geocode'],
-        componentRestrictions: { country: 'pl' },
-        fields: ["formatted_address","geometry","name"]
-    };
+    const options = { types:['geocode'], componentRestrictions:{country:'pl'}, fields:["formatted_address","geometry","name"] };
 
     // Start
     const originInput = document.getElementById('originInput');
     const originAutocomplete = new google.maps.places.Autocomplete(originInput, options);
     originAutocomplete.addListener('place_changed', () => {
         const place = originAutocomplete.getPlace();
-        if (!place.geometry) {
-            alert("Wybierz miejsce z listy podpowiedzi.");
-            originInput.value = "";
-            originPlace = null;
-        } else {
-            originPlace = place.formatted_address;
-        }
+        if(!place.geometry){ alert("Wybierz miejsce z listy podpowiedzi."); originInput.value=""; originPlace=null; }
+        else originPlace = place.formatted_address;
     });
 
     // Koniec
@@ -82,117 +71,91 @@ function initAutocomplete() {
     const destinationAutocomplete = new google.maps.places.Autocomplete(destinationInput, options);
     destinationAutocomplete.addListener('place_changed', () => {
         const place = destinationAutocomplete.getPlace();
-        if (!place.geometry) {
-            alert("Wybierz miejsce z listy podpowiedzi.");
-            destinationInput.value = "";
-            destinationPlace = null;
-        } else {
-            destinationPlace = place.formatted_address;
-        }
+        if(!place.geometry){ alert("Wybierz miejsce z listy podpowiedzi."); destinationInput.value=""; destinationPlace=null; }
+        else destinationPlace = place.formatted_address;
     });
 
-    // Bias geolokalizacji
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((position) => {
-            const circle = new google.maps.Circle({
-                center: { lat: position.coords.latitude, lng: position.coords.longitude },
-                radius: 20000
-            });
+    // Geolokalizacja
+    if(navigator.geolocation){
+        navigator.geolocation.getCurrentPosition(pos=>{
+            const circle = new google.maps.Circle({center:{lat:pos.coords.latitude,lng:pos.coords.longitude},radius:20000});
             originAutocomplete.setBounds(circle.getBounds());
             destinationAutocomplete.setBounds(circle.getBounds());
         });
     }
 }
 
-// --- DODAWANIE PUNKTÓW POŚREDNICH ---
+// --- Dodawanie punktów pośrednich ---
 const waypointsContainer = document.getElementById('waypointsContainer');
-document.getElementById('addWaypointBtn').addEventListener('click', () => {
-    const div = document.createElement('div');
-    div.className='waypoint';
-
-    const input = document.createElement('input');
-    input.placeholder = "Punkt pośredni";
-
-    const btn = document.createElement('button');
-    btn.textContent = "X";
-    btn.type = "button";
-    btn.onclick = () => {
-        waypointPlaces = waypointPlaces.filter(p => p.input !== input);
-        div.remove();
-    };
-
-    div.appendChild(input);
-    div.appendChild(btn);
-    waypointsContainer.appendChild(div);
-
-    const options = { types:['geocode'], componentRestrictions:{country:'pl'}, fields:["formatted_address","geometry","name"] };
-    const autocomplete = new google.maps.places.Autocomplete(input, options);
-    autocomplete.addListener('place_changed', () => {
+document.getElementById('addWaypointBtn').addEventListener('click', ()=>{
+    const div = document.createElement('div'); div.className='waypoint';
+    const input = document.createElement('input'); input.placeholder="Punkt pośredni";
+    const btn = document.createElement('button'); btn.textContent="X"; btn.type="button";
+    btn.onclick = ()=>{ waypointPlaces=waypointPlaces.filter(p=>p.input!==input); div.remove(); };
+    div.appendChild(input); div.appendChild(btn); waypointsContainer.appendChild(div);
+    const autocomplete = new google.maps.places.Autocomplete(input,{types:['geocode'],componentRestrictions:{country:'pl'},fields:["formatted_address","geometry","name"]});
+    autocomplete.addListener('place_changed', ()=>{
         const place = autocomplete.getPlace();
-        if(!place.geometry){
-            alert("Wybierz miejsce z listy podpowiedzi.");
-            input.value = "";
-            waypointPlaces = waypointPlaces.filter(p=>p.input!==input);
-        } else {
-            const existingIndex = waypointPlaces.findIndex(p=>p.input===input);
-            if(existingIndex!==-1) waypointPlaces[existingIndex].place = place.formatted_address;
+        if(!place.geometry){ alert("Wybierz miejsce z listy podpowiedzi."); input.value=""; waypointPlaces=waypointPlaces.filter(p=>p.input!==input); }
+        else{
+            const existing = waypointPlaces.findIndex(p=>p.input===input);
+            if(existing!==-1) waypointPlaces[existing].place=place.formatted_address;
             else waypointPlaces.push({input, place: place.formatted_address});
         }
     });
 });
 
-// --- FETCH SEGMENT Z TIMEOUT ---
-async function fetchSegment(origin,destination,departUnix){
-    return new Promise((resolve,reject)=>{
-        let finished = false;
-        const timer = setTimeout(()=>{
-            if(!finished){
-                finished=true;
-                console.warn("Timeout segmentu", origin,destination);
-                resolve(null);
-            }
-        },5000); // 5 sekund timeout
+// --- CACHE ---
+function getCacheKey(origin,destination,departUnix){ return `${origin}|${destination}|${departUnix}`; }
+function getFromCache(origin,destination,departUnix){
+    const cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
+    const key = getCacheKey(origin,destination,departUnix);
+    const item = cache[key];
+    if(item && (Date.now()-item.timestamp)<cacheExpiration) return item.durationInTraffic;
+    return null;
+}
+function saveToCache(origin,destination,departUnix,durationSec){
+    const cache = JSON.parse(localStorage.getItem('routesCache')||'{}');
+    cache[getCacheKey(origin,destination,departUnix)]={durationInTraffic:durationSec,timestamp:Date.now()};
+    localStorage.setItem('routesCache',JSON.stringify(cache));
+}
 
+// --- Fetch segment z timeout i cache ---
+async function fetchSegment(origin,destination,departUnix){
+    const cached = getFromCache(origin,destination,departUnix);
+    if(cached!==null) return cached;
+
+    return new Promise((resolve)=>{
+        let finished=false;
+        const timer = setTimeout(()=>{ if(!finished){ finished=true; console.warn("Timeout segmentu",origin,destination); resolve(null); } },5000);
         directionsService.route({
-            origin,
-            destination,
-            travelMode: google.maps.TravelMode.DRIVING,
-            drivingOptions:{
-                departureTime: new Date(departUnix*1000),
-                trafficModel:'BEST_GUESS'
-            }
+            origin,destination,travelMode:google.maps.TravelMode.DRIVING,
+            drivingOptions:{departureTime:new Date(departUnix*1000),trafficModel:'BEST_GUESS'}
         }, (result,status)=>{
-            if(finished) return;
-            finished=true;
-            clearTimeout(timer);
+            if(finished) return; finished=true; clearTimeout(timer);
             if(status==='OK'){
                 const durationSec = result.routes[0].legs[0].duration_in_traffic?.value
                                     || result.routes[0].legs[0].duration.value;
+                saveToCache(origin,destination,departUnix,durationSec);
                 resolve(durationSec);
-            } else {
-                console.warn("Błąd segmentu",origin,destination,status);
-                resolve(null);
-            }
+            } else { console.warn("Błąd segmentu",origin,destination,status); resolve(null); }
         });
     });
 }
 
-async function fetchRouteTotalTime(points,departUnix){
-    let total=0;
+// --- Fetch całej trasy równolegle dla danego departUnix ---
+async function fetchRouteTotalTimeParallel(points, departUnix){
+    const segmentPromises = [];
     for(let i=0;i<points.length-1;i++){
-        const segTime = await fetchSegment(points[i],points[i+1],departUnix);
-        if(segTime!==null) total+=segTime;
+        segmentPromises.push(fetchSegment(points[i],points[i+1],departUnix));
     }
-    return total;
+    const segmentTimes = await Promise.all(segmentPromises);
+    return segmentTimes.filter(s=>s!==null).reduce((a,b)=>a+b,0);
 }
 
-// --- EVENT LISTENER CALCULATE ---
+// --- Event calculate ---
 document.getElementById('calculateBtn').addEventListener('click', async ()=>{
-    if(!originPlace || !destinationPlace){
-        alert("Wybierz punkt startowy i końcowy z listy podpowiedzi.");
-        return;
-    }
-
+    if(!originPlace || !destinationPlace){ alert("Wybierz punkt startowy i końcowy z listy podpowiedzi."); return; }
     const waypoints = waypointPlaces.map(p=>p.place).filter(p=>p);
     const routePoints = [originPlace,...waypoints,destinationPlace];
 
@@ -200,53 +163,37 @@ document.getElementById('calculateBtn').addEventListener('click', async ()=>{
     const toTime = document.getElementById('toTime').value;
     const stepMin = parseInt(document.getElementById('stepMin').value);
 
-    const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML='Trwa obliczanie...';
+    const resultsDiv=document.getElementById('results'); resultsDiv.innerHTML='Trwa obliczanie...';
+    const chartLabels=[]; const chartData=[];
 
-    const chartLabels = [];
-    const chartData = [];
+    const fromDate=new Date(); fromDate.setHours(...fromTime.split(':'));
+    const toDate=new Date(); toDate.setHours(...toTime.split(':'));
 
-    const fromDate = new Date();
-    fromDate.setHours(...fromTime.split(':'));
-    const toDate = new Date();
-    toDate.setHours(...toTime.split(':'));
+    // Tworzymy wszystkie zapytania równolegle
+    const timePoints = [];
+    for(let t=fromDate.getTime(); t<=toDate.getTime(); t+=stepMin*60000) timePoints.push(Math.floor(t/1000));
+    const promises = timePoints.map(d=>fetchRouteTotalTimeParallel(routePoints,d));
+    const results = await Promise.all(promises);
 
-    for(let t=fromDate.getTime(); t<=toDate.getTime(); t+=stepMin*60000){
-        const departUnix = Math.floor(t/1000);
-        try{
-            const totalSec = await fetchRouteTotalTime(routePoints,departUnix);
-            const minLabel = `${Math.floor(t/3600000)}:${("0"+Math.floor((t/60000)%60)).slice(-2)}`;
-            chartLabels.push(minLabel);
-            chartData.push(totalSec?Math.round(totalSec/60):null);
-        }catch(err){
-            console.error(err);
-            chartLabels.push('err');
-            chartData.push(null);
-        }
-    }
+    results.forEach((totalSec,i)=>{
+        const t = new Date(timePoints[i]*1000);
+        const minLabel = `${("0"+t.getHours()).slice(-2)}:${("0"+t.getMinutes()).slice(-2)}`;
+        chartLabels.push(minLabel);
+        chartData.push(totalSec?Math.round(totalSec/60):null);
+    });
 
     resultsDiv.innerHTML=`Najkrótszy czas: ${Math.min(...chartData.filter(d=>d!==null))} min`;
 
-    const ctx = document.getElementById('chart').getContext('2d');
+    const ctx=document.getElementById('chart').getContext('2d');
     new Chart(ctx,{
         type:'line',
-        data:{
-            labels: chartLabels,
-            datasets:[{
-                label:'Czas przejazdu [min]',
-                data: chartData,
-                borderColor:'#6200ee',
-                backgroundColor:'rgba(98,0,238,0.2)',
-                fill:true,
-                tension:0.3
-            }]
-        },
+        data:{labels:chartLabels,datasets:[{label:'Czas przejazdu [min]',data:chartData,borderColor:'#6200ee',backgroundColor:'rgba(98,0,238,0.2)',fill:true,tension:0.3}]},
         options:{responsive:true,plugins:{legend:{display:true}}}
     });
 });
 
-// --- Inicjalizacja Google Maps API ---
-const script = document.createElement('script');
+// --- Google Maps API ---
+const script=document.createElement('script');
 script.src=`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initAutocomplete`;
 script.async=true;
 document.head.appendChild(script);
