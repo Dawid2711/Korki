@@ -57,7 +57,7 @@ function splitRouteIntoSegments(points){
 }
 
 // --- DirectionsService ---
-const directionsService = new google.maps.DirectionsService();
+let directionsService;
 
 async function fetchSegment(origin, destination, departUnix){
     return new Promise((resolve,reject)=>{
@@ -91,11 +91,33 @@ async function fetchRouteTotalTime(points, departUnix){
     return total;
 }
 
-// --- AUTOCOMPLETE ---
+// --- AUTOCOMPLETE Z GEOLOCALIZACJĄ ---
 function initAutocomplete(){
-    const options = { types: ['geocode'], componentRestrictions:{country:'pl'} };
-    new google.maps.places.Autocomplete(document.getElementById('originInput'), options);
-    new google.maps.places.Autocomplete(document.getElementById('destinationInput'), options);
+    directionsService = new google.maps.DirectionsService();
+
+    const options = {
+        types: ['geocode'],
+        componentRestrictions: { country: 'pl' },
+        fields: ["geometry","name"]
+    };
+
+    const originInput = document.getElementById('originInput');
+    const destinationInput = document.getElementById('destinationInput');
+
+    const originAutocomplete = new google.maps.places.Autocomplete(originInput, options);
+    const destinationAutocomplete = new google.maps.places.Autocomplete(destinationInput, options);
+
+    // Bias lokalizacji w stronę użytkownika
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+            const circle = new google.maps.Circle({
+                center: { lat: position.coords.latitude, lng: position.coords.longitude },
+                radius: 20000
+            });
+            originAutocomplete.setBounds(circle.getBounds());
+            destinationAutocomplete.setBounds(circle.getBounds());
+        });
+    }
 }
 
 // --- DODAWANIE PUNKTÓW POŚREDNICH ---
