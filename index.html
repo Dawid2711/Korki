@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 5.3 – z wykresem!</title>
+  <title>Korkometr 5.3 – z wykresem (naprawione!)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--warning:#ff9800}
@@ -35,7 +35,7 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 5.3</h2>
+  <h2>🚗 Korkometr 5.3 – z wykresem!</h2>
 
   <div class="card">
     <div class="row">
@@ -88,7 +88,7 @@
 </div>
 
 <script>
-  // === Wszystko dokładnie jak w 5.1 (tryb ciemny, przełączanie trybów, ulubione, geolokalizacja itd.) ===
+  // Tryb ciemny – działa idealnie
   const themeBtn = document.getElementById('themeToggle');
   const dark = localStorage.getItem("kork_dark") === "1" || (!localStorage.getItem("kork_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches);
   if (dark) document.body.setAttribute('data-theme','dark');
@@ -101,19 +101,21 @@
     localStorage.setItem("kork_dark", isDark ? "1" : "0");
   };
 
+  // Przełączanie trybów
   document.getElementById("modeEarly").onclick = () => { document.getElementById("modeEarly").classList.add("active"); document.getElementById("modeArrival").classList.remove("active"); document.getElementById("earlyMode").style.display = "block"; document.getElementById("arrivalMode").style.display = "none"; };
   document.getElementById("modeArrival").onclick = () => { document.getElementById("modeArrival").classList.add("active"); document.getElementById("modeEarly").classList.remove("active"); document.getElementById("arrivalMode").style.display = "block"; document.getElementById("earlyMode").style.display = "none"; };
 
   let map, ds, dr, chart = null;
-  let allResults = []; // <-- do wykresu
+  let allResults = []; // <-- ważne: przechowujemy pełną trasę do wykresu
 
   function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {center:{lat:52.2297,lng:21.0122},zoom:11,gestureHandling:"greedy"});
     ds = new google.maps.DirectionsService();
     dr = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:"#1565c0",strokeWeight:8}});
 
+    // NAPRAWIONE: poprawna nazwa
     new google.maps.places.Autocomplete(document.getElementById("startInput"), {componentRestrictions:{country:"pl"}});
-    new google.maps.places.Autidata.complete(document.getElementById("endInput"), {componentRestrictions:{country:"pl"}});
+    new google.maps.places.Autocomplete(document.getElementById("endInput"), {componentRestrictions:{country:"pl"}});
 
     ["startInput","endInput"].forEach(id => document.getElementById(id).addEventListener("focus", e => e.target.select()));
 
@@ -144,7 +146,7 @@
     const end = document.getElementById("endInput").value.trim();
     if (!start || !end) return alert("Wpisz trasę!");
 
-    document.getElementById("result").innerHTML = "⏳ Trwa analiza...";
+    document.getElementById("result").innerHTML = "⏳ Trwa analiza korków...";
     document.getElementById("chartContainer").style.display = "none";
     if (chart) chart.destroy();
     allResults = [];
@@ -152,11 +154,41 @@
     const isArrivalMode = document.getElementById("modeArrival").classList.contains("active");
 
     if (isArrivalMode) {
-      // Tryb "dojazd do godziny X" – bez zmian
-      // (kod identyczny jak w 5.1 – działa)
-      // ... (pomijam dla długości, ale jest taki sam)
+      // Tryb dojazd do godziny X – bez zmian
+      const [ah, am] = document.getElementById("arrivalTime").value.split(":").map(Number);
+      const target = new Date();
+      target.setDate(target.getDate() + 1);
+      target.setHours(ah, am, 0, 0);
+
+      let test = new Date(target);
+      test.setHours(test.getHours() - 4);
+
+      while (test < target) {
+        const dur = await getDuration(start, end, test);
+        if (dur) {
+          const arrival = new Date(test);
+          arrival.setMinutes(arrival.getMinutes() + dur);
+          if (arrival <= target) allResults.push({departure: new Date(test), durationMin: dur});
+        }
+        test.setMinutes(test.getMinutes() + 5);
+      }
+
+      if (allResults.length === 0) {
+        document.getElementById("result").innerHTML = "Nie da się dojechać na czas 😭";
+        return;
+      }
+
+      allResults.sort((a,b) => b.departure - a.departure);
+      const winner = allResults[0];
+      const wyjazd = winner.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+
+      document.getElementById("result").innerHTML = `
+        <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
+          WYJEDŹ NAJPOŹNIEJ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
+          Dojedziesz na czas (~${winner.durationMin} min)
+        </div>`;
     } else {
-      // Klasyczny tryb – zbieramy wszystkie wyniki do wykresu
+      // Klasyczny tryb – z pełnym wykresem
       const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
       const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
       const step = parseInt(document.getElementById("stepSelect").value);
@@ -172,7 +204,7 @@
       }
 
       if (allResults.length === 0) {
-        document.getElementById("result").innerHTML = "Brak danych o korkach";
+        document.getElementById("result").innerHTML = "Brak danych o korkach – sprawdź klucz API";
         return;
       }
 
@@ -186,7 +218,7 @@
       document.getElementById("result").innerHTML = `
         <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
           WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
-          ≈ ${winner.durationMin} min<br>
+          ≈ ${winner.durationMin} min w trasie<br>
           <small>Sweet spot: ${sweetStart} – ${sweetEnd}</small>
         </div>`;
 
@@ -195,17 +227,15 @@
 
       if (winner.route) dr.setDirections(winner.route);
 
-      drawChart(); // <--- WYKRES!
+      drawChart(); // <-- wykres!
     }
 
-    // Link do Maps
     const link = document.getElementById("googleMapsLink");
     link.style.display = "block";
     link.href = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(start)}&destination=${encodeURIComponent(end)}&travelmode=driving`;
     link.textContent = "Otwórz w Google Maps";
   }
 
-  // === WYKRES ===
   function drawChart() {
     document.getElementById("chartContainer").style.display = "block";
     const ctx = document.getElementById('trafficChart').getContext('2d');
@@ -228,15 +258,13 @@
           fill: true,
           tension: 0.4,
           pointBackgroundColor: data.map((_, i) => sweetIndices.includes(i) ? '#1b5e20' : '#ff5252'),
-          pointRadius: data.map((_, i) => sweetIndices.includes(i) ? 12 : 6),
-          pointHoverRadius: data.map((_, i) => sweetIndices.includes(i) ? 16 : 10)
+          pointRadius: data.map((_, i) => sweetIndices.includes(i) ? 12 : 6)
         }]
       },
       options: {
         responsive: true,
         plugins: {
-          title: {display: true, text: 'Zielone kropki = sweet spot – kliknij punkt, żeby zobaczyć trasę!', font: {size: 18}},
-          tooltip: {callbacks: {afterLabel: ctx => `Wyjazd: ${labels[ctx.dataIndex]}`}}
+          title: {display: true, text: 'Zielone kropki = sweet spot – kliknij punkt!', font: {size: 18}}
         },
         onClick: (e, el) => {
           if (el.length > 0) {
@@ -248,7 +276,6 @@
     });
   }
 
-  // getDuration i getFullRoute – dokładnie jak w 5.1
   async function getDuration(start, end, time) {
     return new Promise(r => {
       ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:"pessimistic"}}, (res,st) => {
@@ -265,7 +292,7 @@
   }
 </script>
 
-<!-- TWÓJ KLUCZ API -->
+<!-- WKLEJ SWÓJ KLUCZ API -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=initMap" async defer></script>
 </body>
 </html>
