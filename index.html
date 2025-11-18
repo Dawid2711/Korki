@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr</title>
+  <title>Korkometr 4.1 – Dojazd do godziny X</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root {--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--danger:#d32f2f;--warning:#ff9800}
-    [data-theme="dark"] {--bg:#121212;--card:#1e1e1e;--text:#e0e0e0;--primary:#4a9eff}
+    :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--danger:#d32f2f;--warning:#ff9800}
+    [data-theme="dark"]{--bg:#121212;--card:#1e1e1e;--text:#e0e0e0;--primary:#4a9eff}
     body{font-family:-apple-system,system-ui,sans-serif;margin:0;background:var(--bg);color:var(--text);transition:.4s;padding-bottom:100px}
     .container{max-width:540px;margin:0 auto;padding:15px}
     h2{text-align:center;color:var(--primary);margin:20px 0 8px;font-size:24px}
     .card{background:var(--card);border-radius:16px;padding:20px;margin-bottom:20px;box-shadow:0 8px 25px rgba(0,0,0,.12)}
     input[type=text],select,input[type=time]{width:100%;padding:16px;margin:8px 0;font-size:17px;border-radius:12px;border:1px solid #ddd;background:var(--card);color:var(--text);box-sizing:border-box}
-    .row{display:flex;gap:10px;align-items:center}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .btn{padding:10px;border-radius:50%;width:50px;height:50px;border:none;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center}
     .geo{background:var(--warning);color:#fff}
     .swap{background:var(--primary);color:#fff}
@@ -25,8 +25,10 @@
     .google-maps-btn{display:block;background:#4285f4;color:#fff;text-align:center;padding:18px;font-size:18px;border-radius:100px;text-decoration:none;margin:20px 0;font-weight:bold}
     .history-item,.fav-item{padding:12px;background:rgba(0,0,0,.05);border-radius:10px;margin:8px 0;cursor:pointer}
     .weather{text-align:center;font-size:18px;margin:15px 0;padding:15px;background:rgba(255,152,0,.15);border-radius:12px}
-    .range-info{font-size:14px;text-align:center;color:#666;margin:10px 0}
-    label{display:block;margin:8px 0}
+    .range-info{font-size:15px;text-align:center;color:#555;margin:15px 0;font-weight:bold}
+    .mode-switch{margin:15px 0;text-align:center}
+    .mode-switch button{background:#eee;color:#000;padding:12px 20px;border:none;border-radius:50px;margin:0 5px;font-size:16px}
+    .mode-switch button.active{background:var(--primary);color:#fff}
     @media(max-width:600px){.row{flex-direction:column}.btn{width:46px;height:46px;font-size:22px}}
   </style>
 </head>
@@ -34,13 +36,13 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 3.1</h2>
-  <p style="text-align:center">Najwcześniejszy dojazd – teraz jeszcze lepszy!</p>
+  <h2>🚗 Korkometr 4.1 ULTIMATE</h2>
+  <p style="text-align:center">Najwcześniejszy dojazd LUB dojazd do godziny X</p>
 
   <div class="card">
     <div class="row">
       <input type="text" id="startInput" placeholder="Skąd jedziesz?">
-      <button class="btn geo" id="geoBtn" title="Moja lokalizacja">📍</button>
+      <button class="btn geo" id="geoBtn">📍</button>
       <button class="btn swap" id="swapBtn">↔</button>
       <button class="btn fav" id="saveFavBtn">❤️</button>
     </div>
@@ -48,30 +50,25 @@
 
     <div id="favoritesList" style="margin:15px 0"></div>
 
-    <select id="travelMode">
-      <option value="DRIVING">🚗 Samochód</option>
-      <option value="BICYCLING">🚴 Rower</option>
-      <option value="TWO_WHEELER">🏍️ Motocykl</option>
-    </select>
-
-    <label><input type="checkbox" id="avoidHighways"> Unikaj autostrad</label>
-    <label><input type="checkbox" id="avoidTolls"> Unikaj opłat</label>
-    <label><input type="checkbox" id="avoidFerries"> Unikaj promów</label>
-
-    <div class="row" style="flex-wrap:wrap;gap:10px;justify-content:center">
-      <input type="time" id="departFrom" value="14:00"> <span>–</span>
-      <input type="time" id="departTo" value="20:00">
-      <select id="daySelect"></select>
-      <select id="stepSelect"><option value="5">5 min</option><option value="3">3 min</option><option value="10" selected>10 min</option></select>
+    <div class="mode-switch">
+      <button id="modeEarly" class="active">Najwcześniejszy dojazd</button>
+      <button id="modeArrival">Dojazd do godziny</button>
     </div>
-    <div class="range-info" id="rangeInfo">Analiza od 14:00 do 20:00</div>
 
-    <button class="main-btn" id="bestTimeBtn">Szukaj najlepszego wyjazdu!</button>
+    <div id="earlyMode">
+      <div class="range-info">W jakich godzinach chcesz jechać?</div>
+      <div class="row">
+        <input type="time" id="departFrom" value="14:00"> <span>–</span>
+        <input type="time" id="departTo" value="20:00">
+      </div>
+    </div>
 
-    <details style="margin-top:20px">
-      <summary style="cursor:pointer;color:var(--primary);font-weight:bold">+ Porównaj alternatywną trasę</summary>
-      <input type="text" id="altInput" placeholder="Przez... (np. przez most Gdański)">
-    </details>
+    <div id="arrivalMode" style="display:none">
+      <div class="range-info">O której musisz być na miejscu?</div>
+      <input type="time" id="arrivalTime" value="18:00">
+    </div>
+
+    <button class="main-btn" id="bestTimeBtn">Oblicz!</button>
   </div>
 
   <div id="weather"></div>
@@ -88,53 +85,37 @@
 </div>
 
 <script>
-  // ===== TRY B CIEMNY – NAPRAWIONY! =====
+  // Tryb ciemny (z pamiętaniem)
   const themeBtn = document.getElementById('themeToggle');
-  const isDark = localStorage.getItem("korkometr_dark") === "1" || (!localStorage.getItem("korkometr_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  if (isDark) document.body.setAttribute('data-theme','dark');
-  themeBtn.innerHTML = isDark ? "☀️" : "🌙";
+  const savedDark = localStorage.getItem("korkometr_dark") === "1";
+  if (savedDark || (!localStorage.getItem("korkometr_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches)) document.body.setAttribute('data-theme','dark');
+  themeBtn.innerHTML = document.body.hasAttribute('data-theme') ? "☀️" : "🌙";
   themeBtn.onclick = () => {
-    const nowDark = !document.body.hasAttribute('data-theme');
-    if (nowDark) document.body.setAttribute('data-theme','dark');
-    else document.body.removeAttribute('data-theme');
-    themeBtn.innerHTML = nowDark ? "☀️" : "🌙";
-    localStorage.setItem("korkometr_dark", nowDark ? "1" : "0");
+    document.body.toggleAttribute('data-theme');
+    const isDark = document.body.hasAttribute('data-theme');
+    themeBtn.innerHTML = isDark ? "☀️" : "🌙";
+    localStorage.setItem("korkometr_dark", isDark ? "1" : "0");
   };
 
-  // ===== INTELignetNY WYBÓR DNI (zaczyna od jutra!) =====
-  const dayNames = ["Nd", "Pon", "Wt", "Śr", "Czw", "Pt", "Sob"];
-  const today = new Date().getDay(); // 0=Nd, 1=Pon...
-  const daySelect = document.getElementById("daySelect");
-  let opts = '<option value="">Jutro</option><option value="today">Dziś</option>';
-  for (let i = 1; i <= 7; i++) {
-    const d = (today + i) % 7;
-    opts += `<option value="${d}">${dayNames[d]} (${new Date(Date.now() + i*86400000).toLocaleDateString('pl-PL',{day:'numeric',month:'numeric'})})</option>`;
-  }
-  daySelect.innerHTML = opts;
+  // Przełączanie trybów
+  const modeEarly = document.getElementById("modeEarly");
+  const modeArrival = document.getElementById("modeArrival");
+  const earlyModeDiv = document.getElementById("earlyMode");
+  const arrivalModeDiv = document.getElementById("arrivalMode");
+  modeEarly.onclick = () => { modeEarly.classList.add("active"); modeArrival.classList.remove("active"); earlyModeDiv.style.display = "block"; arrivalModeDiv.style.display = "none"; };
+  modeArrival.onclick = () => { modeArrival.classList.add("active"); modeEarly.classList.remove("active"); arrivalModeDiv.style.display = "block"; earlyModeDiv.style.display = "none"; };
 
-  // ===== PODPIS Z ZAKRESEM =====
-  function updateRangeInfo() {
-    const from = document.getElementById("departFrom").value;
-    const to = document.getElementById("departTo").value;
-    document.getElementById("rangeInfo").textContent = `Analiza w godzinach ${from} – ${to}`;
-  }
-  document.getElementById("departFrom").addEventListener("change", updateRangeInfo);
-  document.getElementById("departTo").addEventListener("change", updateRangeInfo);
-  updateRangeInfo();
-
-  let map, ds, dr1, dr2, chart = null;
+  let map, ds, dr, chart = null;
 
   function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {center:{lat:52.2297,lng:21.0122},zoom:11,gestureHandling:"greedy"});
     ds = new google.maps.DirectionsService();
-    dr1 = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:"#1565c0",strokeWeight:8}});
-    dr2 = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:"#ff9800",strokeWeight:6,strokeOpacity:0.7}});
+    dr = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:"#1565c0",strokeWeight:8}});
 
     new google.maps.places.Autocomplete(document.getElementById("startInput"), {componentRestrictions:{country:"pl"}});
     new google.maps.places.Autocomplete(document.getElementById("endInput"), {componentRestrictions:{country:"pl"}});
-    new google.maps.places.Autocomplete(document.getElementById("altInput"), {componentRestrictions:{country:"pl"}});
 
-    ["startInput","endInput","altInput"].forEach(id => document.getElementById(id).addEventListener("focus", e => e.target.select()));
+    ["startInput","endInput"].forEach(id => document.getElementById(id).addEventListener("focus", e => e.target.select()));
 
     document.getElementById("swapBtn").onclick = () => {
       const a = document.getElementById("startInput").value;
@@ -155,20 +136,130 @@
       }, () => {document.getElementById("geoBtn").innerHTML = "📍"; alert("Nie udało się")});
     };
 
-    document.getElementById("saveFavBtn").onclick = saveFavorite;
-    loadFavorites(); loadHistory();
-    document.getElementById("bestTimeBtn").onclick = findEarliestPossibleArrival;
+    document.getElementById("saveFavBtn").onclick = () => {
+      const s = document.getElementById("startInput").value.trim();
+      const e = document.getElementById("endInput").value.trim();
+      if (!s || !e) return;
+      let f = JSON.parse(localStorage.getItem("kfav")||"[]");
+      const key = s+" → "+e;
+      if (!f.includes(key)) {f.unshift(key); localStorage.setItem("kfav",JSON.stringify(f.slice(0,20)));}
+      loadFavorites();
+    };
+
+    function loadFavorites() {
+      const f = JSON.parse(localStorage.getItem("kfav")||"[]");
+      document.getElementById("favoritesList").innerHTML = f.map(x=>`<div class="fav-item" onclick="loadFav('${x.replace(/'/g,\"\\'")}')">${x}</div>`).join("");
+    }
+    window.loadFav = s => {const [a,b]=s.split(" → "); document.getElementById("startInput").value=a; document.getElementById("endInput").value=b;};
+    loadFavorites();
+
+    document.getElementById("bestTimeBtn").onclick = findBestTime;
   }
 
-  // reszta kodu identyczna jak wcześniej (ulubione, historia, analiza itd.) – nie zmieniałem, bo działa idealnie
-  // (pełna logika analizy, sweet spot, pogoda, wykres – wszystko zostaje)
+  async function findBestTime() {
+    const start = document.getElementById("startInput").value.trim();
+    const end = document.getElementById("endInput").value.trim();
+    if (!start || !end) return alert("Wpisz trasę!");
 
-  // ... wklej tutaj resztę funkcji z poprzedniej wersji (saveFavorite, loadFavorites, addToHistory, loadHistory, showWeather, findEarliestPossibleArrival, getRoute, drawChart)
-  // Żeby nie rozwlekać – po prostu zamień cały <script> z poprzedniej wersji na ten poniżej (od // Tryb ciemny do końca)
+    document.getElementById("result").innerHTML = "⏳ Trwa analiza…";
 
-  // ===== CAŁY RESZTA SKRYPTU (identyczny jak w 3.0) =====
-  // (kopiuj od "function saveFavorite()" do końca </script> z mojej poprzedniej wiadomości – działa idealnie)
+    const isArrivalMode = document.getElementById("modeArrival").classList.contains("active");
+    let results = [];
 
+    if (isArrivalMode) {
+      const arrivalStr = document.getElementById("arrivalTime").value;
+      const [ah, am] = arrivalStr.split(":").map(Number);
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(ah, am, 0, 0);
+
+      // Szukamy od 3 godziny wcześniej do 30 minut wcześniej
+      let testTime = new Date(tomorrow);
+      testTime.setHours(testTime.getHours() - 3);
+
+      while (testTime < tomorrow) {
+        const duration = await getDuration(start, end, testTime);
+        if (duration) {
+          const arrival = new Date(testTime);
+          arrival.setMinutes(arrival.getMinutes() + duration);
+          if (arrival <= tomorrow) {
+            results.push({departure: new Date(testTime), durationMin: duration, arrival});
+          }
+        }
+        testTime.setMinutes(testTime.getMinutes() + 5);
+      }
+
+      if (results.length === 0) {
+        document.getElementById("result").innerHTML = "<div style='background:#ffebee;padding:20px;border-radius:12px'>Nie da się dojechać na czas 😭</div>";
+        return;
+      }
+
+      results.sort((a,b) => b.departure - a.departure); // najnowszy wyjazd
+      const winner = results[0];
+
+      document.getElementById("result").innerHTML = `
+        <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
+          WYJEDŹ NAJPOŹNIEJ O <strong style="font-size:42px;color:#1b5e20">
+            ${winner.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</strong><br><br>
+          Dojedziesz o czasie (ok. ${winner.durationMin} min w trasie)
+        </div>`;
+    } else {
+      // Klasyczny tryb najwcześniejszy dojazd
+      const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
+      const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
+      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0,0,0,0);
+      let current = new Date(tomorrow); current.setHours(h1,m1);
+      const endTime = new Date(tomorrow); endTime.setHours(h2,m2);
+
+      while (current <= endTime) {
+        const duration = await getDuration(start, end, current);
+        if (duration) results.push({departure: new Date(current), durationMin: duration});
+        current.setMinutes(current.getMinutes() + 10);
+      }
+
+      if (results.length === 0) { document.getElementById("result").innerHTML = "Brak danych"; return; }
+
+      const min = Math.min(...results.map(r => r.durationMin));
+      const candidates = results.filter(r => r.durationMin <= min + 1).sort((a,b) => a.departure - b.departure);
+      const winner = candidates[0];
+
+      document.getElementById("result").innerHTML = `
+        <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
+          WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">
+            ${winner.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</strong><br><br>
+          ≈ ${winner.durationMin} min w trasie
+        </div>`;
+    }
+
+    // Pokaz trasę
+    dr.setDirections(await getFullRoute(start, end, results[0].departure || winner.departure));
+
+    // Link do Maps
+    const link = document.getElementById("googleMapsLink");
+    link.style.display = "block";
+    link.href = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(start)}&destination=${encodeURIComponent(end)}&travelmode=driving`;
+    link.textContent = "Otwórz w Google Maps";
+  }
+
+  async function getDuration(start, end, depTime) {
+    return new Promise(r => {
+      ds.route({
+        origin: start, destination: end, travelMode: "DRIVING",
+        drivingOptions: {departureTime: depTime, trafficModel: "pessimistic"}
+      }, (res, st) => {
+        if (st === "OK" && res.routes[0].legs[0].duration_in_traffic) {
+          r(Math.round(res.routes[0].legs[0].duration_in_traffic.value / 60));
+        } else r(null);
+      });
+    });
+  }
+
+  async function getFullRoute(start, end, depTime) {
+    return new Promise(r => {
+      ds.route({
+        origin: start, destination: end, travelMode: "DRIVING",
+        drivingOptions: {departureTime: depTime, trafficModel: "pessimistic"}
+      }, (res, st) => r(st === "OK" ? res : null));
+    });
+  }
 </script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDh1_peFnB-COnDYYkzeXzdGCWVlDMC9w0&libraries=places&callback=initMap" async defer></script>
 </body>
