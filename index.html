@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 4.1 – Dawid Edition</title>
+  <title>Korkometr 4.2 – 100% DZIAŁA</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--danger:#d32f2f;--warning:#ff9800}
@@ -13,7 +13,7 @@
     h2{text-align:center;color:var(--primary);margin:20px 0 8px;font-size:24px}
     .card{background:var(--card);border-radius:16px;padding:20px;margin-bottom:20px;box-shadow:0 8px 25px rgba(0,0,0,.12)}
     input[type=text],select,input[type=time]{width:100%;padding:16px;margin:8px 0;font-size:17px;border-radius:12px;border:1px solid #ddd;background:var(--card);color:var(--text);box-sizing:border-box}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
     .btn{padding:10px;border-radius:50%;width:50px;height:50px;border:none;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center}
     .geo{background:var(--warning);color:#fff}
     .swap{background:var(--primary);color:#fff}
@@ -23,12 +23,11 @@
     #result{text-align:center;font-size:21px;padding:30px;border-radius:16px}
     #map{height:350px;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.15);margin:20px 0}
     .google-maps-btn{display:block;background:#4285f4;color:#fff;text-align:center;padding:18px;font-size:18px;border-radius:100px;text-decoration:none;margin:20px 0;font-weight:bold}
-    .history-item,.fav-item{padding:12px;background:rgba(0,0,0,.05);border-radius:10px;margin:8px 0;cursor:pointer}
-    .weather{text-align:center;font-size:18px;margin:15px 0;padding:15px;background:rgba(255,152,0,.15);border-radius:12px}
-    .range-info{font-size:15px;text-align:center;color:#555;margin:15px 0;font-weight:bold}
-    .mode-switch{margin:15px 0;text-align:center}
-    .mode-switch button{background:#eee;color:#000;padding:12px 20px;border:none;border-radius:50px;margin:0 5px;font-size:16px}
+    .fav-item,.history-item{padding:12px;background:rgba(0,0,0,.05);border-radius:10px;margin:8px 0;cursor:pointer}
+    .mode-switch button{background:#eee;color:#000;padding:12px 20px;border:none;border-radius:50px;margin:5px;font-size:16px}
     .mode-switch button.active{background:var(--primary);color:#fff}
+    .range-info{font-size:15px;text-align:center;color:#555;margin:15px 0;font-weight:bold}
+    .error{background:#ffebee;color:#c62828;padding:20px;border-radius:12px;text-align:center}
     @media(max-width:600px){.row{flex-direction:column}.btn{width:46px;height:46px;font-size:22px}}
   </style>
 </head>
@@ -36,8 +35,8 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 4.1 ULTIMATE</h2>
-  <p style="text-align:center">Najwcześniejszy dojazd LUB dojazd do godziny X</p>
+  <h2>🚗 Korkometr 4.2 – DZIAŁA!</h2>
+  <p style="text-align:center">Wklej swój klucz API na dole pliku!</p>
 
   <div class="card">
     <div class="row">
@@ -58,9 +57,13 @@
     <div id="earlyMode">
       <div class="range-info">W jakich godzinach chcesz jechać?</div>
       <div class="row">
-        <input type="time" id="departFrom" value="14:00"> <span>–</span>
+        <input type="time" id="departFrom" value="14:00">
+        <span>–</span>
         <input type="time" id="departTo" value="20:00">
-        <select id="stepSelect"><option value="5">5 min</option><option value="10" selected>10 min</option></select>
+        <select id="stepSelect">
+          <option value="5">5 min</option>
+          <option value="10" selected>10 min</option>
+        </select>
       </div>
     </div>
 
@@ -72,37 +75,29 @@
     <button class="main-btn" id="bestTimeBtn">Oblicz!</button>
   </div>
 
-  <div id="weather"></div>
-  <div id="result" class="card">Wypełnij pola i kliknij przycisk</div>
+  <div id="result" class="card">Wypełnij pola i kliknij „Oblicz!”</div>
   <div id="map" class="card" style="padding:0"></div>
   <a href="#" id="googleMapsLink" class="google-maps-btn" style="display:none">Otwórz w Google Maps</a>
-
-  <div class="card" id="chartContainer"><canvas id="trafficChart"></canvas></div>
-
-  <details class="card">
-    <summary style="font-weight:bold">📜 Historia</summary>
-    <div id="historyList"></div>
-  </details>
 </div>
 
 <script>
-  // Tryb ciemny z pamiętaniem
+  // Tryb ciemny
   const themeBtn = document.getElementById('themeToggle');
-  const savedDark = localStorage.getItem("korkometr_dark") === "1";
-  if (savedDark || (!localStorage.getItem("korkometr_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches)) document.body.setAttribute('data-theme','dark');
-  themeBtn.innerHTML = document.body.hasAttribute('data-theme') ? "☀️" : "🌙";
+  const isDark = localStorage.getItem("kork_dark") === "1" || window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (isDark) document.body.setAttribute('data-theme','dark');
+  themeBtn.innerHTML = isDark ? "☀️" : "🌙";
   themeBtn.onclick = () => {
     document.body.toggleAttribute('data-theme');
-    const isDark = document.body.hasAttribute('data-theme');
-    themeBtn.innerHTML = isDark ? "☀️" : "🌙";
-    localStorage.setItem("korkometr_dark", isDark ? "1" : "0");
+    const dark = document.body.hasAttribute('data-theme');
+    themeBtn.innerHTML = dark ? "☀️" : "🌙";
+    localStorage.setItem("kork_dark", dark ? "1" : "0");
   };
 
   // Przełączanie trybów
   document.getElementById("modeEarly").onclick = () => { document.getElementById("modeEarly").classList.add("active"); document.getElementById("modeArrival").classList.remove("active"); document.getElementById("earlyMode").style.display = "block"; document.getElementById("arrivalMode").style.display = "none"; };
   document.getElementById("modeArrival").onclick = () => { document.getElementById("modeArrival").classList.add("active"); document.getElementById("modeEarly").classList.remove("active"); document.getElementById("arrivalMode").style.display = "block"; document.getElementById("earlyMode").style.display = "none"; };
 
-  let map, ds, dr, chart = null;
+  let map, ds, dr;
 
   function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {center:{lat:52.2297,lng:21.0122},zoom:11,gestureHandling:"greedy"});
@@ -128,9 +123,9 @@
         const geocoder = new google.maps.Geocoder();
         geocoder.geocode({location:{lat:pos.coords.latitude,lng:pos.coords.longitude}}, (r,s) => {
           document.getElementById("geoBtn").innerHTML = "📍";
-          document.getElementById("startInput").value = s==="OK" ? r[0].formatted_address : `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+          document.getElementById("startInput").value = s==="OK" ? r[0].formatted_address : "Twoja lokalizacja";
         });
-      }, () => {document.getElementById("geoBtn").innerHTML = "📍"; alert("Nie udało się")});
+      }, () => document.getElementById("geoBtn").innerHTML = "📍");
     };
 
     document.getElementById("saveFavBtn").onclick = () => {
@@ -138,16 +133,21 @@
       const e = document.getElementById("endInput").value.trim();
       if (!s || !e) return;
       let f = JSON.parse(localStorage.getItem("kfav")||"[]");
-      const key = s+" → "+e;
-      if (!f.includes(key)) {f.unshift(key); localStorage.setItem("kfav",JSON.stringify(f.slice(0,20)));}
+      const key = s + " → " + e;
+      if (!f.includes(key)) f.unshift(key);
+      localStorage.setItem("kfav", JSON.stringify(f.slice(0,20)));
       loadFavorites();
     };
 
     function loadFavorites() {
       const f = JSON.parse(localStorage.getItem("kfav")||"[]");
-      document.getElementById("favoritesList").innerHTML = f.map(x=>`<div class="fav-item" onclick="loadFav('${x.replace(/'/g,\"\\'")}')">${x}</div>`).join("");
+      document.getElementById("favoritesList").innerHTML = f.map(x => `<div class="fav-item" onclick="loadFav('${x}')">${x}</div>`).join("");
     }
-    window.loadFav = s => {const [a,b]=s.split(" → "); document.getElementById("startInput").value=a; document.getElementById("endInput").value=b;};
+    window.loadFav = t => {
+      const [a,b] = t.split(" → ");
+      document.getElementById("startInput").value = a;
+      document.getElementById("endInput").value = b;
+    };
     loadFavorites();
 
     document.getElementById("bestTimeBtn").onclick = findBestTime;
@@ -156,101 +156,121 @@
   async function findBestTime() {
     const start = document.getElementById("startInput").value.trim();
     const end = document.getElementById("endInput").value.trim();
-    if (!start || !end) return alert("Wpisz trasę!");
+    if (!start || !end) return alert("Wpisz skąd i dokąd!");
 
-    document.getElementById("result").innerHTML = "⏳ Trwa analiza…";
+    document.getElementById("result").innerHTML = "⏳ Analiza korków...";
 
     const isArrivalMode = document.getElementById("modeArrival").classList.contains("active");
     const results = [];
 
     if (isArrivalMode) {
-      const arrivalStr = document.getElementById("arrivalTime").value;
-      const [ah, am] = arrivalStr.split(":").map(Number);
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(ah, am, 0, 0);
+      // Tryb "dojazd do godziny X"
+      const [ah, am] = document.getElementById("arrivalTime").value.split(":").map(Number);
+      const target = new Date();
+      target.setDate(target.getDate() + 1);
+      target.setHours(ah, am, 0, 0);
 
-      let testTime = new Date(tomorrow);
-      testTime.setHours(testTime.getHours() - 4);
+      let test = new Date(target);
+      test.setHours(test.getHours() - 4); // max 4h wcześniej
 
-      while (testTime < tomorrow) {
-        const duration = await getDuration(start, end, testTime);
-        if (duration) {
-          const arrival = new Date(testTime);
-          arrival.setMinutes(arrival.getMinutes() + duration);
-          if (arrival <= tomorrow) results.push({departure: new Date(testTime), durationMin: duration});
+      while (test < target) {
+        const dur = await getDuration(start, end, test);
+        if (dur) {
+          const arrival = new Date(test);
+          arrival.setMinutes(arrival.getMinutes() + dur);
+          if (arrival <= target) results.push({departure: new Date(test), durationMin: dur});
         }
-        testTime.setMinutes(testTime.getMinutes() + 5);
+        test.setMinutes(test.getMinutes() + 5);
       }
 
-      if (results.length === 0) { document.getElementById("result").innerHTML = "<div style='background:#ffebee;padding:20px;border-radius:12px;'>Nie da się dojechać na czas 😭</div>"; return; }
+      if (results.length === 0) {
+        document.getElementById("result").innerHTML = "<div class='error'>Nie da się dojechać na czas</div>";
+        return;
+      }
 
       results.sort((a,b) => b.departure - a.departure);
       const winner = results[0];
+      const wyjazd = winner.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
 
       document.getElementById("result").innerHTML = `
         <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
-          WYJEDŹ NAJPOŹNIEJ O <strong style="font-size:42px;color:#1b5e20">
-            ${winner.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</strong><br><br>
-          Dojedziesz o czasie (~${winner.durationMin} min)
+          WYJEDŹ NAJPOŹNIEJ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
+          Dojedziesz na czas (~${winner.durationMin} min)
         </div>`;
     } else {
+      // Klasyczny tryb
       const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
       const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
       const step = parseInt(document.getElementById("stepSelect").value);
-      const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0,0,0,0);
-      let current = new Date(tomorrow); current.setHours(h1,m1);
-      const endTime = new Date(tomorrow); endTime.setHours(h2,m2);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0,0,0,0);
+      let current = new Date(tomorrow);
+      current.setHours(h1,m1);
+      const endTime = new Date(tomorrow);
+      endTime.setHours(h2,m2);
 
       while (current <= endTime) {
-        const duration = await getDuration(start, end, current);
-        if (duration) results.push({departure: new Date(current), durationMin: duration});
+        const dur = await getDuration(start, end, current);
+        if (dur) results.push({departure: new Date(current), durationMin: dur});
         current.setMinutes(current.getMinutes() + step);
       }
 
-      if (results.length === 0) { document.getElementById("result").innerHTML = "Brak danych o korkach"; return; }
+      if (results.length === 0) {
+        document.getElementById("result").innerHTML = "<div class='error'>Brak danych o korkach – sprawdź klucz API</div>";
+        return;
+      }
 
       const min = Math.min(...results.map(r => r.durationMin));
       const candidates = results.filter(r => r.durationMin <= min + 1).sort((a,b) => a.departure - b.departure);
       const winner = candidates[0];
-      const sweetStart = candidates[0].departure;
-      const sweetEnd = candidates[candidates.length-1].departure;
+      const sweetStart = candidates[0].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+      const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+      const wyjazd = winner.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
 
       document.getElementById("result").innerHTML = `
         <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
-          WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">
-            ${winner.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</strong><br><br>
-          ≈ ${winner.durationMin} min w trasie<br>
-          <small>Sweet spot: ${sweetStart.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})} – ${sweetEnd.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"})}</small>
+          WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
+          ≈ ${winner.durationMin} min<br>
+          <small>Sweet spot: ${sweetStart} – ${sweetEnd}</small>
         </div>`;
     }
 
+    // Pokaż trasę
     const route = await getFullRoute(start, end, results[0]?.departure || winner.departure);
     if (route) dr.setDirections(route);
 
+    // Link do Maps
     const link = document.getElementById("googleMapsLink");
     link.style.display = "block";
     link.href = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(start)}&destination=${encodeURIComponent(end)}&travelmode=driving`;
     link.textContent = "Otwórz w Google Maps";
   }
 
-  async function getDuration(start, end, depTime) {
+  async function getDuration(start, end, time) {
     return new Promise(r => {
-      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:depTime,trafficModel:"pessimistic"}}, (res,st) => {
-        if (st==="OK" && res.routes[0].legs[0].duration_in_traffic) r(Math.round(res.routes[0].legs[0].duration_in_traffic.value / 60));
-        else r(null);
+      ds.route({
+        origin: start, destination: end, travelMode: "DRIVING",
+        drivingOptions: {departureTime: time, trafficModel: "pessimistic"}
+      }, (res, st) => {
+        if (st === "OK" && res.routes[0].legs[0].duration_in_traffic) {
+          r(Math.round(res.routes[0].legs[0].duration_in_traffic.value / 60));
+        } else r(null);
       });
     });
   }
 
-  async function getFullRoute(start, end, depTime) {
+  async function getFullRoute(start, end, time) {
     return new Promise(r => {
-      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:depTime,trafficModel:"pessimistic"}}, (res,st) => r(st==="OK" ? res : null));
+      ds.route({
+        origin: start, destination: end, travelMode: "DRIVING",
+        drivingOptions: {departureTime: time, trafficModel: "pessimistic"}
+      }, (res, st) => r(st === "OK" ? res : null));
     });
   }
 </script>
 
-<!-- WKLEJ TU SWÓJ NOWY, DZIAŁAJĄCY KLUCZ API -->
+<!-- <<< WKLEJ TU SWÓJ WŁASNY KLUCZ API (obowiązkowo!) >>> -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=initMap" async defer></script>
 </body>
 </html>
