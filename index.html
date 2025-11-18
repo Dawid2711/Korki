@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 5.3 – z wykresem (naprawione!)</title>
+  <title>Korkometr 5.4 – idealna lokalizacja + wykres</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--warning:#ff9800}
@@ -35,7 +35,7 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 5.3 – z wykresem!</h2>
+  <h2>🚗 Korkometr 5.4</h2>
 
   <div class="card">
     <div class="row">
@@ -88,7 +88,7 @@
 </div>
 
 <script>
-  // Tryb ciemny – działa idealnie
+  // Tryb ciemny
   const themeBtn = document.getElementById('themeToggle');
   const dark = localStorage.getItem("kork_dark") === "1" || (!localStorage.getItem("kork_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches);
   if (dark) document.body.setAttribute('data-theme','dark');
@@ -106,14 +106,13 @@
   document.getElementById("modeArrival").onclick = () => { document.getElementById("modeArrival").classList.add("active"); document.getElementById("modeEarly").classList.remove("active"); document.getElementById("arrivalMode").style.display = "block"; document.getElementById("earlyMode").style.display = "none"; };
 
   let map, ds, dr, chart = null;
-  let allResults = []; // <-- ważne: przechowujemy pełną trasę do wykresu
+  let allResults = [];
 
   function initMap() {
     map = new google.maps.Map(document.getElementById("map"), {center:{lat:52.2297,lng:21.0122},zoom:11,gestureHandling:"greedy"});
     ds = new google.maps.DirectionsService();
     dr = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:"#1565c0",strokeWeight:8}});
 
-    // NAPRAWIONE: poprawna nazwa
     new google.maps.places.Autocomplete(document.getElementById("startInput"), {componentRestrictions:{country:"pl"}});
     new google.maps.places.Autocomplete(document.getElementById("endInput"), {componentRestrictions:{country:"pl"}});
 
@@ -126,16 +125,37 @@
       document.getElementById("endInput").value = a;
     };
 
+    // IDEALNA GEOLOKALIZACJA – ZAWSZE ŁADNY ADRES
     document.getElementById("geoBtn").onclick = () => {
       if (!navigator.geolocation) return alert("Brak geolokalizacji");
+
       document.getElementById("geoBtn").innerHTML = "⏳";
-      navigator.geolocation.getCurrentPosition(pos => {
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({location:{lat:pos.coords.latitude,lng:pos.coords.longitude}}, (r,s) => {
+      document.getElementById("startInput").value = "Szukam adresu...";
+
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+
+        try {
+          const resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=TWÓJ_KLUCZ_TUTAJ&language=pl&result_type=street_address|route`);
+          const data = await resp.json();
+
           document.getElementById("geoBtn").innerHTML = "📍";
-          document.getElementById("startInput").value = s==="OK" ? r[0].formatted_address : "Twoja lokalizacja";
-        });
-      }, () => document.getElementById("geoBtn").innerHTML = "📍");
+
+          if (data.status === "OK" && data.results && data.results.length > 0) {
+            // Bierzemy najbardziej szczegółowy adres
+            document.getElementById("startInput").value = data.results[0].formatted_address;
+          } else {
+            document.getElementById("startInput").value = "Twoja przybliżona lokalizacja";
+          }
+        } catch (e) {
+          document.getElementById("geoBtn").innerHTML = "📍";
+          document.getElementById("startInput").value = "Błąd pobierania adresu";
+        }
+      }, () => {
+        document.getElementById("geoBtn").innerHTML = "📍";
+        document.getElementById("startInput").value = "Nie udało się pobrać lokalizacji";
+      });
     };
 
     document.getElementById("bestTimeBtn").onclick = findBestTime;
@@ -154,7 +174,6 @@
     const isArrivalMode = document.getElementById("modeArrival").classList.contains("active");
 
     if (isArrivalMode) {
-      // Tryb dojazd do godziny X – bez zmian
       const [ah, am] = document.getElementById("arrivalTime").value.split(":").map(Number);
       const target = new Date();
       target.setDate(target.getDate() + 1);
@@ -174,7 +193,7 @@
       }
 
       if (allResults.length === 0) {
-        document.getElementById("result").innerHTML = "Nie da się dojechać na czas 😭";
+        document.getElementById("result").innerHTML = "<div style='background:#ffebee;padding:20px;border-radius:12px'>Nie da się dojechać na czas 😭</div>";
         return;
       }
 
@@ -188,7 +207,6 @@
           Dojedziesz na czas (~${winner.durationMin} min)
         </div>`;
     } else {
-      // Klasyczny tryb – z pełnym wykresem
       const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
       const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
       const step = parseInt(document.getElementById("stepSelect").value);
@@ -204,7 +222,7 @@
       }
 
       if (allResults.length === 0) {
-        document.getElementById("result").innerHTML = "Brak danych o korkach – sprawdź klucz API";
+        document.getElementById("result").innerHTML = "<div style='background:#ffebee;padding:20px;border-radius:12px'>Brak danych o korkach – sprawdź klucz API</div>";
         return;
       }
 
@@ -227,7 +245,7 @@
 
       if (winner.route) dr.setDirections(winner.route);
 
-      drawChart(); // <-- wykres!
+      drawChart();
     }
 
     const link = document.getElementById("googleMapsLink");
@@ -295,4 +313,4 @@
 <!-- WKLEJ SWÓJ KLUCZ API -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=initMap" async defer></script>
 </body>
-</html> 
+</html>
