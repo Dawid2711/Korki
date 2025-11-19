@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 8.2 – działa 100% (naprawione!)</title>
+  <title>Korkometr 8.3 – działa idealnie!</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--warning:#ff9800}
@@ -39,7 +39,7 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 8.2 – działa idealnie!</h2>
+  <h2>🚗 Korkometr 8.3 – działa idealnie!</h2>
 
   <div class="card">
     <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?">
@@ -55,7 +55,7 @@
     <!-- 3 TRYBY TRASY -->
     <div class="option-row">
       <input type="radio" name="routePref" value="fastest" id="rpFast" checked>
-      <label for="rpFast">⚡ Najszybsza (nawet +100 km, byle szybciej!)</label>
+      <label for="rpFast">⚡ Najszybsza (nawet dłuższa, byle szybciej!)</label>
     </div>
     <div class="option-row">
       <input type="radio" name="routePref" value="shortest" id="rpShort">
@@ -218,7 +218,7 @@
     shortestDistance = Infinity;
     fastestTime = Infinity;
 
-    const baseDate = new Date(); // jutro
+    const baseDate = new Date();
     baseDate.setDate(baseDate.getDate() + 1);
     baseDate.setHours(0,0,0,0);
 
@@ -232,7 +232,7 @@
     endTime.setHours(h2, m2, 0, 0);
 
     while (current <= endTime) {
-      const result = await getBestRoute(start, end, current); // <--- AWAIT BYŁ BRAK!
+      const result = await getBestRoute(start, end, current);
       if (result) allResults.push(result);
       current.setMinutes(current.getMinutes() + step);
     }
@@ -259,17 +259,21 @@
     document.getElementById("sweetWindow").style.display = "block";
     document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
 
-    // PORÓWNANIE KM/MIN
+    // PORÓWNANIE KM/MIN – TERAZ DZIAŁA POPRAWNIE
     const diffKm = winner.distance - shortestDistance;
     const diffMin = fastestTime - winner.time;
-    if (diffKm > 1) {
+    if (diffKm > 0.5) {
       document.getElementById("routeInfo").style.display = "block";
       document.getElementById("routeInfo").innerHTML = `⚡ +${diffKm.toFixed(1)} km, ale -${diffMin} min vs najkrótsza droga`;
+    } else if (diffKm < -0.5) {
+      document.getElementById("routeInfo").style.display = "block";
+      document.getElementById("routeInfo").innerHTML = `🛣️ -${(-diffKm).toFixed(1)} km, ale +${(-diffMin)} min vs najszybsza`;
     }
 
     dr.setDirections(winner.route);
 
     drawChart();
+  // wykres
   }
 
   async function getBestRoute(start, end, time) {
@@ -354,7 +358,6 @@
   }
 </script>
 
-<!-- WKLEJ SWÓJ KLUCZ API W DWÓCH MIEJSCACH -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=initMap" async defer></script>
 </body>
 </html>
