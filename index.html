@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 8.3 – działa idealnie!</title>
+  <title>Korkometr 8.4 – działa idealnie!</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--warning:#ff9800}
@@ -39,7 +39,7 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 8.3 – działa idealnie!</h2>
+  <h2>🚗 Korkometr 8.4 – działa idealnie!</h2>
 
   <div class="card">
     <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?">
@@ -55,7 +55,7 @@
     <!-- 3 TRYBY TRASY -->
     <div class="option-row">
       <input type="radio" name="routePref" value="fastest" id="rpFast" checked>
-      <label for="rpFast">⚡ Najszybsza (nawet dłuższa, byle szybciej!)</label>
+      <label for="rpFast">⚡ Najszybsza (nawet +100 km, byle szybciej!)</label>
     </div>
     <div class="option-row">
       <input type="radio" name="routePref" value="shortest" id="rpShort">
@@ -133,7 +133,7 @@
   let map, ds, dr, chart = null;
   let allResults = [];
   let shortestDistance = Infinity;
-  let fastestTime = Infinity;
+  let shortestTime = Infinity;
 
   function getTrafficModel() {
     return document.querySelector('input[name="trafficModel"]:checked').value;
@@ -216,7 +216,7 @@
     if (chart) chart.destroy();
     allResults = [];
     shortestDistance = Infinity;
-    fastestTime = Infinity;
+    shortestTime = Infinity;
 
     const baseDate = new Date();
     baseDate.setDate(baseDate.getDate() + 1);
@@ -259,21 +259,19 @@
     document.getElementById("sweetWindow").style.display = "block";
     document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
 
-    // PORÓWNANIE KM/MIN – TERAZ DZIAŁA POPRAWNIE
+    // POPRAWIONE PORÓWNANIE
     const diffKm = winner.distance - shortestDistance;
-    const diffMin = fastestTime - winner.time;
-    if (diffKm > 0.5) {
+    const diffMin = shortestTime - winner.time;
+    if (Math.abs(diffKm) > 0.5) {
       document.getElementById("routeInfo").style.display = "block";
-      document.getElementById("routeInfo").innerHTML = `⚡ +${diffKm.toFixed(1)} km, ale -${diffMin} min vs najkrótsza droga`;
-    } else if (diffKm < -0.5) {
-      document.getElementById("routeInfo").style.display = "block";
-      document.getElementById("routeInfo").innerHTML = `🛣️ -${(-diffKm).toFixed(1)} km, ale +${(-diffMin)} min vs najszybsza`;
+      document.getElementById("routeInfo").innerHTML = diffKm > 0 
+        ? `⚡ +${diffKm.toFixed(1)} km, ale -${diffMin} min vs najkrótsza droga`
+        : `🛣️ -${(-diffKm).toFixed(1)} km, ale +${(-diffMin)} min vs najszybsza`;
     }
 
     dr.setDirections(winner.route);
 
     drawChart();
-  // wykres
   }
 
   async function getBestRoute(start, end, time) {
@@ -304,8 +302,9 @@
           }
         });
 
+        // POPRAWIONE – aktualizacja globalnych wartości
         if (bestDistance < shortestDistance) shortestDistance = bestDistance;
-        if (bestTime < fastestTime) fastestTime = bestTime;
+        if (bestTime < shortestTime) shortestTime = bestTime;
 
         r({
           departure: time,
