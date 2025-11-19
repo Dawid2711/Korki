@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 6.2 – działa zajebiście!</title>
+  <title>Korkometr 7.0 – Najlepsza apka do korków EVER</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--warning:#ff9800}
@@ -30,6 +30,7 @@
     .option-row label{cursor:pointer;flex:1}
     .mode-switch button{background:#ddd;color:#000;padding:12px 20px;border:none;border-radius:50px;margin:5px;font-size:16px;width:48%}
     .mode-switch button.active{background:var(--primary);color:#fff}
+    .route-info{font-size:15px;text-align:center;padding:12px;background:rgba(0,0,0,.05);border-radius:12px;margin:10px 0}
     .fav-item{padding:12px;background:rgba(0,0,0,.05);border-radius:10px;margin:8px 0;cursor:pointer;transition:all .4s}
     @media(max-width:600px){.mode-switch button{width:100%;margin:5px 0}}
   </style>
@@ -38,7 +39,7 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 6.2</h2>
+  <h2>🚗 Korkometr 7.0 – Najlepsza apka do korków EVER</h2>
 
   <div class="card">
     <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?">
@@ -50,6 +51,20 @@
     <input type="text" id="endInput" placeholder="🏁 Dokąd zmierzasz?">
 
     <div id="favoritesList" style="margin:20px 0"></div>
+
+    <!-- WYBÓR TRASY -->
+    <div class="option-row">
+      <input type="radio" name="routePref" value="fastest" id="rpFast" checked>
+      <label for="rpFast">⚡ Najszybsza (nawet dłuższa, byle szybciej)</label>
+    </div>
+    <div class="option-row">
+      <input type="radio" name="routePref" value="shortest" id="rpShort">
+      <label for="rpShort">🛣️ Najkrótsza droga</label>
+    </div>
+    <div class="option-row">
+      <input type="radio" name="routePref" value="balanced" id="rpBalanced">
+      <label for="rpBalanced">⚖️ Zrównoważona</label>
+    </div>
 
     <!-- Wybór dnia -->
     <div class="option-row">
@@ -105,6 +120,8 @@
     <span id="sweetText" style="font-size:32px;color:var(--success)"></span>
   </div>
 
+  <div class="route-info" id="routeInfo" style="display:none"></div>
+
   <div id="map" class="card" style="padding:0"></div>
   <a href="#" id="googleMapsLink" class="google-maps-btn" style="display:none">🗺️ Otwórz w Google Maps</a>
 
@@ -114,11 +131,11 @@
 </div>
 
 <script>
-  // Tryb ciemny – działa idealnie
+  // Tryb ciemny
   const themeBtn = document.getElementById('themeToggle');
   const dark = localStorage.getItem("kork_dark") === "1" || (!localStorage.getItem("kork_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches);
   if (dark) document.body.setAttribute('data-theme','dark');
-  themeBtn.innerHTML = dark ? "☀️" : "🌙";
+  themeBtn.innerHTML = dark ? "☀️" : " : "🌙";
   themeBtn.onclick = () => {
     const isDark = !document.body.hasAttribute('data-theme');
     if (isDark) document.body.setAttribute('data-theme','dark');
@@ -146,6 +163,10 @@
 
   function getTrafficModel() {
     return document.querySelector('input[name="trafficModel"]:checked').value;
+  }
+
+  function getRoutePref() {
+    return document.querySelector('input[name="routePref"]:checked').value;
   }
 
   function initMap() {
@@ -231,7 +252,7 @@
     const end = document.getElementById("endInput").value.trim();
     if (!start || !end) return alert("Wpisz trasę!");
 
-    document.getElementById("result").innerHTML = "⏳ Trwa analiza korków...";
+    document.getElementById("result").innerHTML = "⏳ Analiza korków...");
     document.getElementById("chartContainer").style.display = "none";
     if (chart) chart.destroy();
     allResults = [];
@@ -240,6 +261,7 @@
     const isArrivalMode = document.getElementById("modeArrival").classList.contains("active");
 
     if (isArrivalMode) {
+      // tryb dojazd do godziny X
       const [ah, am] = document.getElementById("arrivalTime").value.split(":").map(Number);
       const target = new Date(baseDate);
       target.setHours(ah, am, 0, 0);
@@ -258,7 +280,7 @@
       }
 
       if (allResults.length === 0) {
-        document.getElementById("result").innerHTML = "<div style='background:#ffebee;padding:20px;border-radius:12px'>Nie da się dojechać na czas 😭</div>";
+        document.getElementById("result").innerHTML = "Nie da się dojechać na czas 😭";
         return;
       }
 
@@ -272,6 +294,7 @@
           Dojedziesz na czas (~${winner.durationMin} min)
         </div>`;
     } else {
+      // klasyczny tryb
       const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
       const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
       const step = parseInt(document.getElementById("stepSelect").value);
@@ -289,7 +312,7 @@
       }
 
       if (allResults.length === 0) {
-        document.getElementById("result").innerHTML = "<div style='background:#ffebee;padding:20px;border-radius:12px'>Brak danych o korkach – sprawdź klucz API</div>";
+        document.getElementById("result").innerHTML = "Brak danych o korkach";
         return;
       }
 
@@ -363,21 +386,34 @@
 
   async function getDuration(start, end, time) {
     return new Promise(r => {
-      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:getTrafficModel()}}, (res,st) => {
-        if (st==="OK" && res.routes[0].legs[0].duration_in_traffic) r(Math.round(res.routes[0].legs[0].duration_in_traffic.value / 60));
-        else r(null);
+      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:getTrafficModel()}, provideRouteAlternatives: true}, (res,st) => {
+        if (st==="OK") {
+          let best = res.routes[0];
+          res.routes.forEach(route => {
+            if (route.legs[0].duration_in_traffic.value < best.legs[0].duration_in_traffic.value) best = route;
+          });
+          r(Math.round(best.legs[0].duration_in_traffic.value / 60));
+        } else r(null);
       });
     });
   }
 
   async function getFullRoute(start, end, time) {
     return new Promise(r => {
-      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:getTrafficModel()}}, (res,st) => r(st==="OK" ? res : null));
+      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:getTrafficModel()}, provideRouteAlternatives: true}, (res,st) => {
+        if (st==="OK") {
+          let best = res.routes[0];
+          res.routes.forEach(route => {
+            if (route.legs[0].duration_in_traffic.value < best.legs[0].duration_in_traffic.value) best = route;
+          });
+          r(best);
+        } else r(null);
+      });
     });
   }
 </script>
 
 <!-- WKLEJ SWÓJ KLUCZ API W DWÓCH MIEJSCACH -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=initMap" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=TWÓJ_KLUCZ_TUTAJ&libraries=places&callback=initMap" async defer></script>
 </body>
 </html>
