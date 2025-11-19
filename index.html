@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 9.0 – jeden klucz API!</title>
+  <title>Korkometr 9.0 – FINALNA WERSJA</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--warning:#ff9800}
@@ -39,9 +39,7 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 9.0 – jeden klucz API!</h2>
-
-  <!-- cały interfejs – taki sam jak wcześniej -->
+  <h2>🚗 Korkometr 9.0 – Najlepsza apka do korków EVER</h2>
 
   <div class="card">
     <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?">
@@ -54,57 +52,311 @@
 
     <div id="favoritesList" style="margin:20px 0"></div>
 
-    <!-- 3 tryby trasy, wybór dnia, realistycznie/pesymistycznie, tryby, godziny – wszystko jest -->
+    <!-- 3 TRYBY TRASY -->
+    <div class="option-row">
+      <input type="radio" name="routePref" value="fastest" id="rpFast" checked>
+      <label for="rpFast">⚡ Najszybsza (nawet +100 km, byle szybciej!)</label>
+    </div>
+    <div class="option-row">
+      <input type="radio" name="routePref" value="shortest" id="rpShort">
+      <label for="rpShort">🛣️ Najkrótsza droga</label>
+    </div>
+    <div class="option-row">
+      <input type="radio" name="routePref" value="balanced" id="rpBalanced">
+      <label for="rpBalanced">⚖️ Zrównoważona</label>
+    </div>
+
+    <!-- Realistycznie / Pesymistycznie -->
+    <div class="option-row">
+      <input type="radio" name="trafficModel" value="bestguess" id="tmBest" checked>
+      <label for="tmBest">🚦 Realistycznie</label>
+    </div>
+    <div class="option-row">
+      <input type="radio" name="trafficModel" value="pessimistic" id="tmPess">
+      <label for="tmPess">🚧 Pesymistycznie</label>
+    </div>
+
+    <div class="mode-switch" style="display:flex;justify-content:center">
+      <button id="modeEarly" class="active">🕒 Najwcześniejszy dojazd</button>
+      <button id="modeArrival">🔔 Dojazd do godziny X</button>
+    </div>
+
+    <div id="earlyMode">
+      <div class="range-info">Godziny analizy:</div>
+      <input type="time" id="departFrom" value="14:00">
+      <input type="time" id="departTo" value="20:00">
+      <select id="stepSelect">
+        <option value="5">co 5 min</option>
+        <option value="10" selected>co 10 min</option>
+      </select>
+    </div>
+
+    <div id="arrivalMode" style="display:none">
+      <div class="range-info">O której musisz być na miejscu?</div>
+      <input type="time" id="arrivalTime" value="18:00">
+    </div>
 
     <button class="main-btn" id="bestTimeBtn">🚀 Oblicz najlepszą godzinę!</button>
   </div>
 
-  <!-- reszta UI – wynik, sweet spot, mapa, wykres itd. -->
+  <div id="result" class="card">Wypełnij pola i kliknij 🚀</div>
+
+  <div class="route-info" id="routeInfo" style="display:none"></div>
+
+  <div class="sweet-window" id="sweetWindow" style="display:none">
+    <strong>🟢 Najlepsze okno wyjazdu:</strong><br>
+    <span id="sweetText" style="font-size:32px;color:var(--success)"></span>
+  </div>
+
+  <div id="map" class="card" style="padding:0"></div>
+  <a href="#" id="googleMapsLink" class="google-maps-btn" style="display:none">🗺️ Otwórz w Google Maps</a>
+
+  <div class="chart-container" id="chartContainer">
+    <canvas id="trafficChart"></canvas>
+  </div>
 </div>
 
 <script>
-  // cały skrypt z 6.2 + ulepszenia z 7.0 + geolokalizacja bierze klucz z zmiennej
-
-  const API_KEY = "TU_WKLEJ_SWÓJ_KLUCZ_API"; // <--- TYLKO TUTAJ WKLEJASZ KLUCZ (jedno miejsce!)
-
-  // ... cały skrypt taki sam jak wcześniej
-
-  // Geolokalizacja – teraz bierze klucz z góry
-  document.getElementById("geoBtn").onclick = async () => {
-    if (!navigator.geolocation) return alert("Brak geolokalizacji");
-
-    document.getElementById("geoBtn").innerHTML = "⏳";
-    document.getElementById("startInput").value = "Pobieram adres...";
-
-    navigator.geolocation.getCurrentPosition(async pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      try {
-        const resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${API_KEY}&language=pl`);
-        const data = await resp.json();
-
-        document.getElementById("geoBtn").innerHTML = "📍";
-
-        if (data.status === "OK" && data.results.length > 0) {
-          document.getElementById("startInput").value = data.results[0].formatted_address;
-        } else {
-          document.getElementById("startInput").value = "Twoja aktualna lokalizacja";
-        }
-      } catch (e) {
-        document.getElementById("geoBtn").innerHTML = "📍";
-        document.getElementById("startInput").value = "Twoja aktualna lokalizacja";
-      }
-    }, () => {
-      document.getElementById("geoBtn").innerHTML = "📍";
-      document.getElementById("startInput").value = "Nie udało się";
-    });
+  // Tryb ciemny
+  const themeBtn = document.getElementById('themeToggle');
+  const dark = localStorage.getItem("kork_dark") === "1" || (!localStorage.getItem("kork_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (dark) document.body.setAttribute('data-theme','dark');
+  themeBtn.innerHTML = dark ? "☀️" : "🌙";
+  themeBtn.onclick = () => {
+    const isDark = !document.body.hasAttribute('data-theme');
+    if (isDark) document.body.setAttribute('data-theme','dark');
+    else document.body.removeAttribute('data-theme');
+    themeBtn.innerHTML = isDark ? "☀️" : "🌙";
+    localStorage.setItem("kork_dark", isDark ? "1" : "0");
   };
 
-  // ... reszta skryptu bez zmian
+  let map, ds, dr, chart = null;
+  let allResults = [];
+  let shortestDistance = Infinity;
+  let fastestTime = Infinity;
+
+  function getTrafficModel() {
+    return document.querySelector('input[name="trafficModel"]:checked').value;
+  }
+
+  function getRoutePref() {
+    return document.querySelector('input[name="routePref"]:checked').value;
+  }
+
+  function initMap() {
+    map = new google.maps.Map(document.getElementById("map"), {center:{lat:52.2297,lng:21.0122},zoom:11,gestureHandling:"greedy"});
+    ds = new google.maps.DirectionsService();
+    dr = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:"#1565c0",strokeWeight:8}});
+
+    new google.maps.places.Autocomplete(document.getElementById("startInput"), {componentRestrictions:{country:"pl"}});
+    new google.maps.places.Autocomplete(document.getElementById("endInput"), {componentRestrictions:{country:"pl"}});
+
+    ["startInput","endInput"].forEach(id => document.getElementById(id).addEventListener("focus", e => e.target.select()));
+
+    document.getElementById("swapBtn").onclick = () => {
+      const a = document.getElementById("startInput").value;
+      const b = document.getElementById("endInput").value;
+      document.getElementById("startInput").value = b;
+      document.getElementById("endInput").value = a;
+    };
+
+    document.getElementById("geoBtn").onclick = async () => {
+      if (!navigator.geolocation) return alert("Brak geolokalizacji");
+      document.getElementById("geoBtn").innerHTML = "⏳";
+      document.getElementById("startInput").value = "Pobieram adres...";
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const key = "TWÓJ_KLUCZ_TUTAJ";
+        const resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}&language=pl`);
+        const data = await resp.json();
+        document.getElementById("geoBtn").innerHTML = "📍";
+        document.getElementById("startInput").value = data.status === "OK" ? data.results[0].formatted_address : "Twoja lokalizacja";
+      }, () => {
+        document.getElementById("geoBtn").innerHTML = "📍";
+        document.getElementById("startInput").value = "Nie udało się";
+      });
+    };
+
+    document.getElementById("saveFavBtn").onclick = () => {
+      const s = document.getElementById("startInput").value.trim();
+      const e = document.getElementById("endInput").value.trim();
+      if (!s || !e) return;
+      let f = JSON.parse(localStorage.getItem("kfav") || "[]");
+      const key = s + " → " + e;
+      if (!f.includes(key)) {
+        f.unshift(key);
+        localStorage.setItem("kfav", JSON.stringify(f.slice(0,20)));
+        loadFavorites();
+      }
+    };
+
+    function loadFavorites() {
+      const f = JSON.parse(localStorage.getItem("kfav") || "[]");
+      document.getElementById("favoritesList").innerHTML = f.map(x => `<div class="fav-item" onclick="loadFav('${x}')">${x}</div>`).join("");
+    }
+    window.loadFav = (t) => {
+      const [a, b] = t.split(" → ");
+      document.getElementById("startInput").value = a;
+      document.getElementById("endInput").value = b;
+    };
+    loadFavorites();
+
+    document.getElementById("bestTimeBtn").onclick = findBestTime;
+  }
+
+  async function findBestTime() {
+    const start = document.getElementById("startInput").value.trim();
+    const end = document.getElementById("endInput").value.trim();
+    if (!start || !end) return alert("Wpisz trasę!");
+
+    document.getElementById("result").innerHTML = "⏳ Trwa analiza korków...";
+    document.getElementById("chartContainer").style.display = "none";
+    document.getElementById("routeInfo").style.display = "none";
+    if (chart) chart.destroy();
+    allResults = [];
+    shortestDistance = Infinity;
+    fastestTime = Infinity;
+
+    const baseDate = new Date();
+    baseDate.setDate(baseDate.getDate() + 1);
+    baseDate.setHours(0,0,0,0);
+
+    const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
+    const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
+    const step = parseInt(document.getElementById("stepSelect").value);
+
+    let current = new Date(baseDate);
+    current.setHours(h1, m1, 0, 0);
+    const endTime = new Date(baseDate);
+    endTime.setHours(h2, m2, 0, 0);
+
+    while (current <= endTime) {
+      const result = await getBestRoute(start, end, current);
+      if (result) allResults.push(result);
+      current.setMinutes(current.getMinutes() + step);
+    }
+
+    if (allResults.length === 0) {
+      document.getElementById("result").innerHTML = "Brak danych o korkach – sprawdź klucz API";
+      return;
+    }
+
+    const min = Math.min(...allResults.map(r => r.time));
+    const candidates = allResults.filter(r => r.time <= min + 1).sort((a,b) => a.departure - b.departure);
+    const winner = candidates[0];
+    const sweetStart = candidates[0].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+    const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+    const wyjazd = winner.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+
+    document.getElementById("result").innerHTML = `
+      <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
+        WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
+        ≈ ${winner.time} min (${winner.distance.toFixed(1)} km)<br>
+        <small>Sweet spot: ${sweetStart} – ${sweetEnd}</small>
+      </div>`;
+
+    document.getElementById("sweetWindow").style.display = "block";
+    document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
+
+    // PORÓWNANIE KM/MIN
+    const diffKm = winner.distance - shortestDistance;
+    const diffMin = fastestTime - winner.time;
+    if (Math.abs(diffKm) > 0.5) {
+      document.getElementById("routeInfo").style.display = "block";
+      document.getElementById("routeInfo").innerHTML = diffKm > 0 
+        ? `⚡ +${diffKm.toFixed(1)} km, ale -${diffMin} min vs najkrótsza droga`
+        : `🛣️ -${(-diffKm).toFixed(1)} km, ale +${(-diffMin)} min vs najszybsza`;
+    }
+
+    dr.setDirections(winner.route);
+
+    drawChart();
+  }
+
+  async function getBestRoute(start, end, time) {
+    return new Promise(r => {
+      ds.route({
+        origin: start,
+        destination: end,
+        travelMode: "DRIVING",
+        drivingOptions: {departureTime: time, trafficModel: getTrafficModel()},
+        provideRouteAlternatives: true
+      }, (res, st) => {
+        if (st !== "OK") {
+          r(null);
+          return;
+        }
+
+        let bestRoute = res.routes[0];
+        let bestTime = bestRoute.legs[0].duration_in_traffic.value;
+        let bestDistance = bestRoute.legs[0].distance.value / 1000;
+
+        res.routes.forEach(route => {
+          const t = route.legs[0].duration_in_traffic.value;
+          const d = route.legs[0].distance.value / 1000;
+          if (t < bestTime) {
+            bestTime = t;
+            bestDistance = d;
+            bestRoute = route;
+          }
+        });
+
+        if (bestDistance < shortestDistance) shortestDistance = bestDistance;
+        if (bestTime < fastestTime) fastestTime = bestTime;
+
+        r({
+          departure: time,
+          time: Math.round(bestTime / 60),
+          distance: bestDistance,
+          route: bestRoute
+        });
+      });
+    });
+  }
+
+  function drawChart() {
+    document.getElementById("chartContainer").style.display = "block";
+    const ctx = document.getElementById('trafficChart').getContext('2d');
+    if (chart) chart.destroy();
+
+    const labels = allResults.map(r => r.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"}));
+    const data = allResults.map(r => r.time);
+    const min = Math.min(...data);
+    const sweetIndices = allResults.map((r,i) => data[i] <= min + 1 ? i : -1).filter(i => i >= 0);
+
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Czas z korkami (minuty)',
+          data: data,
+          borderColor: '#d32f2f',
+          backgroundColor: 'rgba(211,47,47,0.1)',
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: data.map((_, i) => sweetIndices.includes(i) ? '#1b5e20' : '#ff5252'),
+          pointRadius: data.map((_, i) => sweetIndices.includes(i) ? 12 : 6)
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {display: true, text: '🟢 Zielone kropki = sweet spot – kliknij punkt!', font: {size: 18}}
+        },
+        onClick: (e, el) => {
+          if (el.length > 0) {
+            const idx = el[0].index;
+            dr.setDirections(allResults[idx].route);
+          }
+        }
+      }
+    });
+  }
 </script>
 
-<!-- JEDNO MIEJSCE NA KLUCZ (na dole) -->
+<!-- WKLEJ SWÓJ KLUCZ API TYLKO TUTAJ -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=initMap" async defer></script>
 </body>
 </html>
