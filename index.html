@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 8.4 – działa idealnie!</title>
+  <title>Korkometr 9.0 – działa idealnie!</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--warning:#ff9800}
@@ -30,7 +30,6 @@
     .option-row label{cursor:pointer;flex:1}
     .mode-switch button{background:#ddd;color:#000;padding:12px 20px;border:none;border-radius:50px;margin:5px;font-size:16px;width:48%}
     .mode-switch button.active{background:var(--primary);color:#fff}
-    .route-info{font-size:16px;text-align:center;padding:15px;background:rgba(255,152,0,.15);border-radius:12px;margin:15px 0;font-weight:bold}
     .fav-item{padding:12px;background:rgba(0,0,0,.05);border-radius:10px;margin:8px 0;cursor:pointer;transition:all .4s}
     @media(max-width:600px){.mode-switch button{width:100%;margin:5px 0}}
   </style>
@@ -39,7 +38,7 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 8.4 – działa idealnie!</h2>
+  <h2>🚗 Korkometr 9.0</h2>
 
   <div class="card">
     <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?">
@@ -51,20 +50,6 @@
     <input type="text" id="endInput" placeholder="🏁 Dokąd zmierzasz?">
 
     <div id="favoritesList" style="margin:20px 0"></div>
-
-    <!-- 3 TRYBY TRASY -->
-    <div class="option-row">
-      <input type="radio" name="routePref" value="fastest" id="rpFast" checked>
-      <label for="rpFast">⚡ Najszybsza (nawet +100 km, byle szybciej!)</label>
-    </div>
-    <div class="option-row">
-      <input type="radio" name="routePref" value="shortest" id="rpShort">
-      <label for="rpShort">🛣️ Najkrótsza droga</label>
-    </div>
-    <div class="option-row">
-      <input type="radio" name="routePref" value="balanced" id="rpBalanced">
-      <label for="rpBalanced">⚖️ Zrównoważona</label>
-    </div>
 
     <!-- Realistycznie / Pesymistycznie -->
     <div class="option-row">
@@ -101,8 +86,6 @@
 
   <div id="result" class="card">Wypełnij pola i kliknij 🚀</div>
 
-  <div class="route-info" id="routeInfo" style="display:none"></div>
-
   <div class="sweet-window" id="sweetWindow" style="display:none">
     <strong>🟢 Najlepsze okno wyjazdu:</strong><br>
     <span id="sweetText" style="font-size:32px;color:var(--success)"></span>
@@ -117,7 +100,7 @@
 </div>
 
 <script>
-  // Tryb ciemny
+  // Tryb ciemny – działa idealnie
   const themeBtn = document.getElementById('themeToggle');
   const dark = localStorage.getItem("kork_dark") === "1" || (!localStorage.getItem("kork_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches);
   if (dark) document.body.setAttribute('data-theme','dark');
@@ -132,15 +115,9 @@
 
   let map, ds, dr, chart = null;
   let allResults = [];
-  let shortestDistance = Infinity;
-  let shortestTime = Infinity;
 
   function getTrafficModel() {
     return document.querySelector('input[name="trafficModel"]:checked').value;
-  }
-
-  function getRoutePref() {
-    return document.querySelector('input[name="routePref"]:checked').value;
   }
 
   function initMap() {
@@ -160,24 +137,40 @@
       document.getElementById("endInput").value = a;
     };
 
+    // Idealna geolokalizacja
     document.getElementById("geoBtn").onclick = async () => {
       if (!navigator.geolocation) return alert("Brak geolokalizacji");
+
       document.getElementById("geoBtn").innerHTML = "⏳";
       document.getElementById("startInput").value = "Pobieram adres...";
+
       navigator.geolocation.getCurrentPosition(async pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         const key = "AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk";
-        const resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}&language=pl`);
-        const data = await resp.json();
-        document.getElementById("geoBtn").innerHTML = "📍";
-        document.getElementById("startInput").value = data.status === "OK" ? data.results[0].formatted_address : "Twoja lokalizacja";
+
+        try {
+          const resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}&language=pl`);
+          const data = await resp.json();
+
+          document.getElementById("geoBtn").innerHTML = "📍";
+
+          if (data.status === "OK" && data.results.length > 0) {
+            document.getElementById("startInput").value = data.results[0].formatted_address;
+          } else {
+            document.getElementById("startInput").value = "Twoja aktualna lokalizacja";
+          }
+        } catch (e) {
+          document.getElementById("geoBtn").innerHTML = "📍";
+          document.getElementById("startInput").value = "Twoja aktualna lokalizacja";
+        }
       }, () => {
         document.getElementById("geoBtn").innerHTML = "📍";
         document.getElementById("startInput").value = "Nie udało się";
       });
     };
 
+    // Ulubione
     document.getElementById("saveFavBtn").onclick = () => {
       const s = document.getElementById("startInput").value.trim();
       const e = document.getElementById("endInput").value.trim();
@@ -212,11 +205,8 @@
 
     document.getElementById("result").innerHTML = "⏳ Trwa analiza korków...";
     document.getElementById("chartContainer").style.display = "none";
-    document.getElementById("routeInfo").style.display = "none";
     if (chart) chart.destroy();
     allResults = [];
-    shortestDistance = Infinity;
-    shortestTime = Infinity;
 
     const baseDate = new Date();
     baseDate.setDate(baseDate.getDate() + 1);
@@ -232,8 +222,9 @@
     endTime.setHours(h2, m2, 0, 0);
 
     while (current <= endTime) {
-      const result = await getBestRoute(start, end, current);
-      if (result) allResults.push(result);
+      const dur = await getDuration(start, end, current);
+      const route = dur ? await getFullRoute(start, end, current) : null;
+      if (dur) allResults.push({departure: new Date(current), durationMin: dur, route});
       current.setMinutes(current.getMinutes() + step);
     }
 
@@ -242,8 +233,8 @@
       return;
     }
 
-    const min = Math.min(...allResults.map(r => r.time));
-    const candidates = allResults.filter(r => r.time <= min + 1).sort((a,b) => a.departure - b.departure);
+    const min = Math.min(...allResults.map(r => r.durationMin));
+    const candidates = allResults.filter(r => r.durationMin <= min + 1).sort((a,b) => a.departure - b.departure);
     const winner = candidates[0];
     const sweetStart = candidates[0].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
     const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
@@ -252,68 +243,16 @@
     document.getElementById("result").innerHTML = `
       <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
         WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
-        ≈ ${winner.time} min (${winner.distance.toFixed(1)} km)<br>
+        ≈ ${winner.durationMin} min w trasie<br>
         <small>Sweet spot: ${sweetStart} – ${sweetEnd}</small>
       </div>`;
 
     document.getElementById("sweetWindow").style.display = "block";
     document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
 
-    // POPRAWIONE PORÓWNANIE
-    const diffKm = winner.distance - shortestDistance;
-    const diffMin = shortestTime - winner.time;
-    if (Math.abs(diffKm) > 0.5) {
-      document.getElementById("routeInfo").style.display = "block";
-      document.getElementById("routeInfo").innerHTML = diffKm > 0 
-        ? `⚡ +${diffKm.toFixed(1)} km, ale -${diffMin} min vs najkrótsza droga`
-        : `🛣️ -${(-diffKm).toFixed(1)} km, ale +${(-diffMin)} min vs najszybsza`;
-    }
-
-    dr.setDirections(winner.route);
+    if (winner.route) dr.setDirections(winner.route);
 
     drawChart();
-  }
-
-  async function getBestRoute(start, end, time) {
-    return new Promise(r => {
-      ds.route({
-        origin: start,
-        destination: end,
-        travelMode: "DRIVING",
-        drivingOptions: {departureTime: time, trafficModel: getTrafficModel()},
-        provideRouteAlternatives: true
-      }, (res, st) => {
-        if (st !== "OK") {
-          r(null);
-          return;
-        }
-
-        let bestRoute = res.routes[0];
-        let bestTime = bestRoute.legs[0].duration_in_traffic.value;
-        let bestDistance = bestRoute.legs[0].distance.value / 1000;
-
-        res.routes.forEach(route => {
-          const t = route.legs[0].duration_in_traffic.value;
-          const d = route.legs[0].distance.value / 1000;
-          if (t < bestTime) {
-            bestTime = t;
-            bestDistance = d;
-            bestRoute = route;
-          }
-        });
-
-        // POPRAWIONE – aktualizacja globalnych wartości
-        if (bestDistance < shortestDistance) shortestDistance = bestDistance;
-        if (bestTime < shortestTime) shortestTime = bestTime;
-
-        r({
-          departure: time,
-          time: Math.round(bestTime / 60),
-          distance: bestDistance,
-          route: bestRoute
-        });
-      });
-    });
   }
 
   function drawChart() {
@@ -322,7 +261,7 @@
     if (chart) chart.destroy();
 
     const labels = allResults.map(r => r.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"}));
-    const data = allResults.map(r => r.time);
+    const data = allResults.map(r => r.durationMin);
     const min = Math.min(...data);
     const sweetIndices = allResults.map((r,i) => data[i] <= min + 1 ? i : -1).filter(i => i >= 0);
 
@@ -349,10 +288,25 @@
         onClick: (e, el) => {
           if (el.length > 0) {
             const idx = el[0].index;
-            dr.setDirections(allResults[idx].route);
+            if (allResults[idx].route) dr.setDirections(allResults[idx].route);
           }
         }
       }
+    });
+  }
+
+  async function getDuration(start, end, time) {
+    return new Promise(r => {
+      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:getTrafficModel()}}, (res,st) => {
+        if (st==="OK" && res.routes[0].legs[0].duration_in_traffic) r(Math.round(res.routes[0].legs[0].duration_in_traffic.value / 60));
+        else r(null);
+      });
+    });
+  }
+
+  async function getFullRoute(start, end, time) {
+    return new Promise(r => {
+      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:getTrafficModel()}}, (res,st) => r(st==="OK" ? res : null));
     });
   }
 </script>
