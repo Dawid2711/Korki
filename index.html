@@ -196,7 +196,7 @@
       navigator.geolocation.getCurrentPosition(async pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        const key = "TWÓJ_KLUCZ_TUTAJ";
+        const key = "AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk";
 
         try {
           const resp = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}&language=pl`);
