@@ -39,7 +39,7 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 9.0 – Najlepsza apka do korków EVER</h2>
+  <h2>🚗 Korkometr 9.0 – FINALNA WERSJA</h2>
 
   <div class="card">
     <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?">
@@ -132,15 +132,23 @@
 
   let map, ds, dr, chart = null;
   let allResults = [];
-  let shortestDistance = Infinity;
-  let fastestTime = Infinity;
+
+  function getSelectedDate() {
+    const choice = document.querySelector('input[name="day"]:checked').value;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    if (choice === "today") return today;
+    if (choice === "tomorrow") {
+      const t = new Date(today);
+      t.setDate(t.getDate() + 1);
+      return t;
+    }
+    const custom = document.getElementById("customDate").value;
+    return custom ? new Date(custom) : new Date(today.getTime() + 86400000);
+  }
 
   function getTrafficModel() {
     return document.querySelector('input[name="trafficModel"]:checked').value;
-  }
-
-  function getRoutePref() {
-    return document.querySelector('input[name="routePref"]:checked').value;
   }
 
   function initMap() {
@@ -161,7 +169,7 @@
     };
 
     document.getElementById("geoBtn").onclick = async () => {
-      if (!navigator.geolocation) return alert("Brak geolokalizacji");
+      if (!navigator.geolokalizacja) return alert("Brak geolokalizacji");
       document.getElementById("geoBtn").innerHTML = "⏳";
       document.getElementById("startInput").value = "Pobieram adres...";
       navigator.geolocation.getCurrentPosition(async pos => {
@@ -212,107 +220,92 @@
 
     document.getElementById("result").innerHTML = "⏳ Trwa analiza korków...";
     document.getElementById("chartContainer").style.display = "none";
-    document.getElementById("routeInfo").style.display = "none";
     if (chart) chart.destroy();
     allResults = [];
-    shortestDistance = Infinity;
-    fastestTime = Infinity;
 
-    const baseDate = new Date();
-    baseDate.setDate(baseDate.getDate() + 1);
-    baseDate.setHours(0,0,0,0);
+    const baseDate = getSelectedDate();
+    const isArrivalMode = document.getElementById("modeArrival").classList.contains("active");
 
-    const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
-    const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
-    const step = parseInt(document.getElementById("stepSelect").value);
+    if (isArrivalMode) {
+      const [ah, am] = document.getElementById("arrivalTime").value.split(":").map(Number);
+      const target = new Date(baseDate);
+      target.setHours(ah, am, 0, 0);
 
-    let current = new Date(baseDate);
-    current.setHours(h1, m1, 0, 0);
-    const endTime = new Date(baseDate);
-    endTime.setHours(h2, m2, 0, 0);
+      let test = new Date(target);
+      test.setHours(test.getHours() - 4);
 
-    while (current <= endTime) {
-      const result = await getBestRoute(start, end, current);
-      if (result) allResults.push(result);
-      current.setMinutes(current.getMinutes() + step);
-    }
-
-    if (allResults.length === 0) {
-      document.getElementById("result").innerHTML = "Brak danych o korkach – sprawdź klucz API";
-      return;
-    }
-
-    const min = Math.min(...allResults.map(r => r.time));
-    const candidates = allResults.filter(r => r.time <= min + 1).sort((a,b) => a.departure - b.departure);
-    const winner = candidates[0];
-    const sweetStart = candidates[0].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
-    const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
-    const wyjazd = winner.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
-
-    document.getElementById("result").innerHTML = `
-      <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
-        WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
-        ≈ ${winner.time} min (${winner.distance.toFixed(1)} km)<br>
-        <small>Sweet spot: ${sweetStart} – ${sweetEnd}</small>
-      </div>`;
-
-    document.getElementById("sweetWindow").style.display = "block";
-    document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
-
-    // PORÓWNANIE KM/MIN
-    const diffKm = winner.distance - shortestDistance;
-    const diffMin = fastestTime - winner.time;
-    if (Math.abs(diffKm) > 0.5) {
-      document.getElementById("routeInfo").style.display = "block";
-      document.getElementById("routeInfo").innerHTML = diffKm > 0 
-        ? `⚡ +${diffKm.toFixed(1)} km, ale -${diffMin} min vs najkrótsza droga`
-        : `🛣️ -${(-diffKm).toFixed(1)} km, ale +${(-diffMin)} min vs najszybsza`;
-    }
-
-    dr.setDirections(winner.route);
-
-    drawChart();
-  }
-
-  async function getBestRoute(start, end, time) {
-    return new Promise(r => {
-      ds.route({
-        origin: start,
-        destination: end,
-        travelMode: "DRIVING",
-        drivingOptions: {departureTime: time, trafficModel: getTrafficModel()},
-        provideRouteAlternatives: true
-      }, (res, st) => {
-        if (st !== "OK") {
-          r(null);
-          return;
+      while (test < target) {
+        const dur = await getDuration(start, end, test);
+        if (dur) {
+          const arrival = new Date(test);
+          arrival.setMinutes(arrival.getMinutes() + dur);
+          if (arrival <= target) allResults.push({departure: new Date(test), durationMin: dur});
         }
+        test.setMinutes(test.getMinutes() + 5);
+      }
 
-        let bestRoute = res.routes[0];
-        let bestTime = bestRoute.legs[0].duration_in_traffic.value;
-        let bestDistance = bestRoute.legs[0].distance.value / 1000;
+      if (allResults.length === 0) {
+        document.getElementById("result").innerHTML = "Nie da się dojechać na czas 😭";
+        return;
+      }
 
-        res.routes.forEach(route => {
-          const t = route.legs[0].duration_in_traffic.value;
-          const d = route.legs[0].distance.value / 1000;
-          if (t < bestTime) {
-            bestTime = t;
-            bestDistance = d;
-            bestRoute = route;
-          }
-        });
+      allResults.sort((a,b) => b.departure - a.departure);
+      const winner = allResults[0];
+      const wyjazd = winner.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
 
-        if (bestDistance < shortestDistance) shortestDistance = bestDistance;
-        if (bestTime < fastestTime) fastestTime = bestTime;
+      document.getElementById("result").innerHTML = `
+        <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
+          WYJEDŹ NAJPOŹNIEJ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
+          Dojedziesz na czas (~${winner.durationMin} min)
+        </div>`;
+    } else {
+      const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
+      const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
+      const step = parseInt(document.getElementById("stepSelect").value);
 
-        r({
-          departure: time,
-          time: Math.round(bestTime / 60),
-          distance: bestDistance,
-          route: bestRoute
-        });
-      });
-    });
+      let current = new Date(baseDate);
+      current.setHours(h1, m1, 0, 0);
+      const endTime = new Date(baseDate);
+      endTime.setHours(h2, m2, 0, 0);
+
+      while (current <= endTime) {
+        const dur = await getDuration(start, end, current);
+        const route = dur ? await getFullRoute(start, end, current) : null;
+        if (dur) allResults.push({departure: new Date(current), durationMin: dur, route});
+        current.setMinutes(current.getMinutes() + step);
+      }
+
+      if (allResults.length === 0) {
+        document.getElementById("result").innerHTML = "Brak danych o korkach – sprawdź klucz API";
+        return;
+      }
+
+      const min = Math.min(...allResults.map(r => r.durationMin));
+      const candidates = allResults.filter(r => r.durationMin <= min + 1).sort((a,b) => a.departure - b.departure);
+      const winner = candidates[0];
+      const sweetStart = candidates[0].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+      const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+      const wyjazd = winner.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"});
+
+      document.getElementById("result").innerHTML = `
+        <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
+          WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${wyjazd}</strong><br><br>
+          ≈ ${winner.durationMin} min w trasie<br>
+          <small>Sweet spot: ${sweetStart} – ${sweetEnd}</small>
+        </div>`;
+
+      document.getElementById("sweetWindow").style.display = "block";
+      document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
+
+      if (winner.route) dr.setDirections(winner.route);
+
+      drawChart();
+    }
+
+    const link = document.getElementById("googleMapsLink");
+    link.style.display = "block";
+    link.href = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(start)}&destination=${encodeURIComponent(end)}&travelmode=driving`;
+    link.textContent = "🗺️ Otwórz w Google Maps";
   }
 
   function drawChart() {
@@ -321,7 +314,7 @@
     if (chart) chart.destroy();
 
     const labels = allResults.map(r => r.departure.toLocaleTimeString("pl-PL", {hour:"2-digit", minute:"2-digit"}));
-    const data = allResults.map(r => r.time);
+    const data = allResults.map(r => r.durationMin);
     const min = Math.min(...data);
     const sweetIndices = allResults.map((r,i) => data[i] <= min + 1 ? i : -1).filter(i => i >= 0);
 
@@ -348,15 +341,29 @@
         onClick: (e, el) => {
           if (el.length > 0) {
             const idx = el[0].index;
-            dr.setDirections(allResults[idx].route);
+            if (allResults[idx].route) dr.setDirections(allResults[idx].route);
           }
         }
       }
     });
   }
+
+  async function getDuration(start, end, time) {
+    return new Promise(r => {
+      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:getTrafficModel()}}, (res,st) => {
+        if (st==="OK" && res.routes[0].legs[0].duration_in_traffic) r(Math.round(res.routes[0].legs[0].duration_in_traffic.value / 60));
+        else r(null);
+      });
+    });
+  }
+
+  async function getFullRoute(start, end, time) {
+    return new Promise(r => {
+      ds.route({origin:start,destination:end,travelMode:"DRIVING",drivingOptions:{departureTime:time,trafficModel:getTrafficModel()}}, (res,st) => r(st==="OK" ? res : null));
+    });
+  }
 </script>
 
-<!-- WKLEJ SWÓJ KLUCZ API TYLKO TUTAJ -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=initMap" async defer></script>
 </body>
 </html>
