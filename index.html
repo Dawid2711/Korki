@@ -3,39 +3,46 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Korkometr PRO — Single-file Test (B, upr.)</title>
+<title>Korkometr PRO — Single-file 2025</title>
 
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- Google Maps (Places + Directions) -->
-<!-- Replace YOUR_GOOGLE_API_KEY_HERE with your key -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&v=weekly" defer></script>
+<!-- Google Maps – callback=init żeby nie było szarej mapy na starcie -->
+<script async defer
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=init&loading=async">
+</script>
 
 <style>
-  /* --- Simple mobile-like layout (B: clean) --- */
-  :root{--bg:#f5f7fa;--card:#fff;--text:#111;--accent:#1565c0;--muted:#6b7280;--good:#1b5e20}
-  [data-theme="dark"]{--bg:#0b0b0c;--card:#111214;--text:#e6eef8;--accent:#4a9eff;--muted:#9aa4b2;--good:#2e7d32}
+  :root{--bg:#f5f7fa;--card:#fff;--text:#111;--accent:#1565c0;--muted:#6b7280;--good:#1b5e20;--grid:#e0e0e0}
+  [data-theme="dark"]{--bg:#0b0b0c;--card:#111214;--text:#e6eef8;--accent:#4a9eff;--muted:#9aa4b2;--good:#2e7d32;--grid:#333}
+  }
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;padding:10px 0}
   .phone{width:420px;max-width:100%;margin:0 auto;min-height:100vh;box-sizing:border-box;padding:14px}
   h2{margin:6px 0 12px;text-align:center;color:var(--accent)}
   .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 10px 30px rgba(2,6,23,0.06)}
-  input[type=text],select,input[type=time],input[type=number]{width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #e6e9ee;background:transparent;color:var(--text);box-sizing:border-box}
-  [data-theme="dark"] input[type=text],[data-theme="dark"] select{border-color:#222}
+  input,select,button{font-family:inherit}
+  input[type=text],select,input[type=time],input[type=number]{
+    width:100%;padding:12px;margin:8px 0;border-radius:10px;border:1px solid #e6e9ee;background:transparent;color:var(--text);box-sizing:border-box
+  }
+  [data-theme="dark"] input,[data-theme="dark"] select{border-color:#333}
+  input:focus,select:focus,button:focus{outline:3px solid var(--accent);outline-offset:2px}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .btn{padding:12px;border-radius:12px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
-  .small{padding:10px;border-radius:10px;background:#eee;border:none;cursor:pointer}
+  .btn{padding:12px 16px;border-radius:12px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
+  .small{padding:9px 11px;border-radius:10px;background:#eee;border:none;cursor:pointer;font-size:14px}
+  [data-theme="dark"] .small{background:#222;color:#eee}
   .muted{color:var(--muted);font-size:13px}
   .actions{display:flex;gap:8px}
   #map{height:380px;border-radius:12px;overflow:hidden;margin-top:12px}
-  #result{padding:14px;text-align:center;font-weight:700}
-  .fav-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:10px;background:rgba(0,0,0,0.03);margin:6px 0}
-  .mode-switch{display:flex;gap:8px;margin:8px 0}
-  .mode-switch button{flex:1}
+  #result{padding:14px;text-align:center;font-weight:700;font-size:15px}
+  .fav-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:10px;background:rgba(0,0,0,0.04);margin:6px 0}
+  .mode-switch{display:flex;gap:8px;margin:12px 0 8px}
+  .mode-switch button{flex:1;padding:12px;border:1px solid rgba(0,0,0,0.08);background:transparent;color:var(--accent);border-radius:12px}
+  .mode-switch button.active{background:var(--accent);color:#fff}
   .chart-container{display:none;margin-top:12px}
-  .sweet{background:#e8f5e9;border:2px solid var(--good);padding:10px;border-radius:10px;margin-top:10px;color:var(--good);font-weight:700}
-  .route-box{padding:10px;border-radius:10px;background:rgba(0,0,0,0.03);margin:8px 0}
-  .small-inline{display:inline-block;padding:8px;border-radius:8px;background:rgba(0,0,0,0.04);margin-left:6px}
+  .sweet{background:#e8f5e9;border:2px solid var(--good);padding:12px;border-radius:12px;margin-top:12px;color:var(--good);font-weight:700;text-align:center;font-size:18px}
+  .route-box{padding:10px;border-radius:10px;background:rgba(0,0,0,0.04);margin:8px 0;font-size:14px}
+  .small-inline{display:inline-block;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,0.06);font-size:12px}
   @media(max-width:420px){.phone{padding:10px}}
 </style>
 </head>
@@ -43,253 +50,254 @@
 <div class="phone">
 
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <h2>Korkometr PRO (test)</h2>
-    <button id="themeBtn" class="small">🌙</button>
+    <h2>Korkometr PRO</h2>
+    <button id="themeBtn" class="small">Dark mode</button>
   </div>
 
   <div class="card">
-    <input id="startInput" type="text" placeholder="📍 Skąd jedziesz? (zacznij wpisywać...)">
-    <div class="row" style="margin-bottom:6px">
-      <button id="geoBtn" class="small">📍</button>
-      <button id="swapBtn" class="small">↔</button>
-      <button id="saveFavBtn" class="small">❤️ Zapisz</button>
+    <input id="startInput" type="text" placeholder="Skąd jedziesz? (zacznij pisać…)">
+    <div class="row" style="margin:8px 0">
+      <button id="geoBtn" class="small">Current location</button>
+      <button id="swapBtn" class="small">Swap</button>
+      <button id="saveFavBtn" class="small">Save favorite</button>
     </div>
 
-    <input id="endInput" type="text" placeholder="🏁 Dokąd zmierzasz? (zacznij wpisywać...)">
+    <input id="endInput" type="text" placeholder="Dokąd zmierzasz?">
 
-    <div id="favoritesList" style="margin-top:8px"></div>
+    <div id="favoritesList" style="margin-top:12px"></div>
 
-    <div style="margin-top:8px" class="muted">Tryb przewidywania korków:</div>
-    <div class="row">
-      <label style="width:100%;display:block;margin-top:6px"><input type="radio" name="trafficModel" value="optimistic"> Optimistycznie</label>
-      <label style="width:100%"><input type="radio" name="trafficModel" value="best_guess" checked> Realistycznie</label>
-      <label style="width:100%"><input type="radio" name="trafficModel" value="pessimistic"> Pesymistycznie</label>
+    <div class="muted" style="margin-top:12px">Tryb przewidywania korków:</div>
+    <div class="row" style="gap:12px;flex-direction:column">
+      <label><input type="radio" name="trafficModel" value="optimistic"> Optymistycznie</label>
+      <label><input type="radio" name="trafficModel" value="best_guess" checked> Realistycznie</label>
+      <label><input type="radio" name="trafficModel" value="pessimistic"> Pesymistycznie</label>
     </div>
 
-    <div class="mode-switch" style="margin-top:6px">
-      <button id="modeEarly" class="btn" style="background:transparent;color:var(--accent);border:1px solid rgba(0,0,0,0.06)">🕒 Najwcześniejszy dojazd</button>
-      <button id="modeArrival" class="btn" style="background:transparent;color:var(--accent);border:1px solid rgba(0,0,0,0.06)">🔔 Dojazd do godz. X</button>
+    <div class="mode-switch">
+      <button id="modeEarly" class="active">Najwcześniejszy dojazd</button>
+      <button id="modeArrival">Dojazd do godziny X</button>
     </div>
 
-    <div id="earlyMode" style="margin-top:8px">
-      <div class="muted">Godziny analizy (następny dzień):</div>
+    <div id="earlyMode">
+      <div class="muted">Godziny analizy (jutro):</div>
       <div class="row">
-        <input id="departFrom" type="time" value="07:00">
-        <input id="departTo" type="time" value="09:00">
+        <input id="departFrom" type="time" value="06:30">
+        <input id="departTo" type="time" value="09:30">
       </div>
-      <div class="row" style="margin-top:6px">
-        <label style="flex:1">Krok (min)</label>
-        <select id="stepSelect" style="width:120px">
-          <option value="5">5</option>
-          <option value="10" selected>10</option>
-          <option value="15">15</option>
+      <div class="row" style="margin-top:8px;align-items:center">
+        <span class="muted">Krok:</span>
+        <select id="stepSelect">
+          <option value="5">5 min</option>
+          <option value="10" selected>10 min</option>
+          <option value="15">15 min</option>
         </select>
-        <label style="margin-left:8px">Tolerancja (min)</label>
-        <input id="tolerance" type="number" value="1" min="0" max="10" style="width:70px">
+        <span class="muted" style="margin-left:12px">Tolerancja:</span>
+        <input id="tolerance" type="number" value="2" min="0" max="15" style="width:70px">
       </div>
     </div>
 
-    <div id="arrivalMode" style="display:none;margin-top:8px">
+    <div id="arrivalMode" style="display:none">
       <div class="muted">O której chcesz być na miejscu?</div>
-      <input id="arrivalTime" type="time" value="18:00">
-      <div style="margin-top:8px" class="muted">Okno poszukiwań (min przed):</div>
-      <input id="arrivalWindow" type="number" value="60" min="5" max="240" style="width:140px">
+      <div class="row">
+        <input id="arrivalTime" type="time" value="18:00">
+        <button id="nowBtn" class="small">Teraz +30 min</button>
+      </div>
+      <div class="muted" style="margin-top:8px">Okno poszukiwań przed tą godziną (minuty):</div>
+      <input id="arrivalWindow" type="number" value="90" min="15" max="240" style="width:140px">
     </div>
 
-    <div style="margin-top:10px">
+    <div style="margin-top:12px">
       <label class="muted">Strategia objazdów:</label>
       <select id="detourLevel">
-        <option value="none">bez dalekich objazdów</option>
-        <option value="short" selected>małe objazdy (~15-30 km)</option>
-        <option value="long">duże objazdy (~30-80 km)</option>
+        <option value="none">bez objazdów</option>
+        <option value="short" selected>małe objazdy (±20–30 km)</option>
+        <option value="long">duże objazdy (±50–80 km)</option>
       </select>
     </div>
 
-    <button id="bestTimeBtn" class="btn" style="margin-top:12px;background:var(--accent)">🚀 Oblicz najlepszą godzinę!</button>
-
+    <button id="bestTimeBtn" class="btn" style="margin-top:16px;width:100%">Oblicz najlepszą godzinę!</button>
   </div>
 
-  <div id="result" class="card">Wypełnij pola i kliknij 🚀</div>
+  <div id="result" class="card">Wypełnij pola i kliknij przycisk powyżej</div>
 
   <div id="sweetWindow" class="card" style="display:none">
-    <div class="sweet" id="sweetText"></div>
+    <div class="sweet" id="sweetText">Okienko</div>
   </div>
 
   <div id="map" class="card" style="padding:0"></div>
 
-  <a id="googleMapsLink" class="btn" style="display:none;margin-top:8px;text-align:center">🗺️ Otwórz w Google Maps</a>
+  <a id="googleMapsLink" class="btn" style="display:none;margin-top:12px;text-align:center;width:100%;text-decoration:none">
+    Otwórz w Google Maps
+  </a>
 
   <div id="chartArea" class="card chart-container">
-    <canvas id="trafficChart" height="120"></canvas>
+    <canvas id="trafficChart"></canvas>
   </div>
+
+  <div id="routes"></div>
 
 </div>
 
 <script>
-/* ===========================
-   INITIAL SETUP & STATE
-   =========================== */
-let map, ds, dr;
-let chart = null;
-let allResults = []; // {departure:Date, durationMin, route, providerInfo}
-let polylines = [];
-const sessionCache = new Map(); // simple in-memory cache for test runs
+/* =========================== GLOBALS =========================== */
+let map, ds, dr, chart = null;
+let allResults = [];
+const sessionCache = new Map();
+const darkMapStyles = [
+  {elementType:"geometry",stylers:[{color:"#212121"}]},
+  {elementType:"labels.icon",stylers:[{visibility:"off"}]},
+  {elementType:"labels.text.fill",stylers:[{color:"#757575"}]},
+  {elementType:"labels.text.stroke",stylers:[{color:"#212121"}]},
+  {featureType:"road",elementType:"geometry",stylers:[{color:"#2c2c2c"}]},
+  {featureType:"road",elementType:"labels.text.fill",stylers:[{color:"#8a8a8a"}]}
+];
 
-// Theme
-const themeBtn = document.getElementById('themeBtn');
-const savedTheme = localStorage.getItem('kork_theme');
-if (savedTheme) document.body.setAttribute('data-theme', savedTheme);
-themeBtn.textContent = document.body.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
-themeBtn.onclick = () => {
-  const isDark = document.body.getAttribute('data-theme') === 'dark';
-  document.body.setAttribute('data-theme', isDark ? 'light' : 'dark');
-  localStorage.setItem('kork_theme', isDark ? 'light' : 'dark');
-  themeBtn.textContent = !isDark ? '☀️' : '🌙';
-  updateChartTheme();
-};
-
-/* ===========================
-   WAIT FOR MAP LIB LOADED
-   =========================== */
-function waitForMaps() {
-  return new Promise((res) => {
-    if (window.google && google.maps) return res();
-    const i = setInterval(() => { if (window.google && google.maps) { clearInterval(i); res(); } }, 100);
-  });
-}
-
-(async function init() {
-  await waitForMaps();
+/* =========================== INIT =========================== */
+function init() {
   initMap();
   attachUI();
   loadFavorites();
   setupAutocomplete('startInput');
   setupAutocomplete('endInput');
-})();
+  loadTheme();
+}
 
-/* ===========================
-   MAP + AUTOCOMPLETE
-   =========================== */
+/* =========================== THEME =========================== */
+function loadTheme(){
+  const saved = localStorage.getItem('kork_theme') || 'light';
+  document.body.setAttribute('data-theme', saved);
+  document.getElementById('themeBtn').textContent = saved === 'dark' ? 'Light mode' : 'Dark mode';
+  updateMapStyle();
+  if(chart) updateChartTheme();
+}
+document.getElementById('themeBtn').onclick = () => {
+  const isDark = document.body.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  document.body.setAttribute('data-theme', newTheme);
+  localStorage.setItem('kork_theme', newTheme);
+  document.getElementById('themeBtn').textContent = newTheme === 'dark' ? 'Light mode' : 'Dark mode';
+  updateMapStyle();
+  updateChartTheme();
+};
+
+/* =========================== MAP =========================== */
 function initMap() {
   map = new google.maps.Map(document.getElementById('map'), {
     center: {lat:52.2297, lng:21.0122},
     zoom: 11,
     gestureHandling: 'greedy',
-    styles: [
-      {elementType:'geometry',stylers:[{color:'#0f1720'}]},
-      {elementType:'labels.text.fill',stylers:[{color:'#9aa4b2'}]},
-      {elementType:'labels.text.stroke',stylers:[{color:'#0f1720'}]},
-      {featureType:'road',elementType:'geometry',stylers:[{color:'#1f2933'}]}
-    ]
+    styles: document.body.getAttribute('data-theme') === 'dark' ? darkMapStyles : []
   });
   ds = new google.maps.DirectionsService();
-  dr = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:'#1565c0',strokeWeight:7}});
+  dr = new google.maps.DirectionsRenderer({
+    map,
+    polylineOptions: {strokeColor:'#1565c0', strokeWeight:7},
+    suppressMarkers: false
+  });
+}
+function updateMapStyle(){
+  const isDark = document.body.getAttribute('data-theme') === 'dark';
+  map.setOptions({styles: isDark ? darkMapStyles : []});
+  if(dr.getDirections()) dr.setMap(map); // odśwież polyline kolor
 }
 
-function setupAutocomplete(id) {
-  const el = document.getElementById(id);
-  const ac = new google.maps.places.Autocomplete(el, {componentRestrictions:{country:'pl'}});
-  ac.setFields(['formatted_address','geometry','name']);
-  // select on Enter by browser default
+/* =========================== AUTOCOMPLETE =========================== */
+function setupAutocomplete(id){
+  const input = document.getElementById(id);
+  const ac = new google.maps.places.Autocomplete(input, {
+    componentRestrictions: {country:'pl'},
+    fields: ['formatted_address','geometry','name']
+  });
 }
 
-/* ===========================
-   UI HOOKS
-   =========================== */
-function attachUI() {
+/* =========================== UI =========================== */
+function attachUI(){
   document.getElementById('geoBtn').onclick = geoLocate;
   document.getElementById('swapBtn').onclick = swapInputs;
   document.getElementById('saveFavBtn').onclick = saveFavorite;
   document.getElementById('modeEarly').onclick = () => toggleMode('early');
   document.getElementById('modeArrival').onclick = () => toggleMode('arrival');
   document.getElementById('bestTimeBtn').onclick = findBestTime;
-  // set default mode
-  toggleMode('early');
+  document.getElementById('nowBtn').onclick = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() + 30);
+    document.getElementById('arrivalTime').value = 
+      `\( {String(d.getHours()).padStart(2,'0')}: \){String(d.getMinutes()).padStart(2,'0')}`;
+  };
+  toggleMode('early'); // default
 }
-
-function toggleMode(m) {
-  const early = document.getElementById('earlyMode');
-  const arrival = document.getElementById('arrivalMode');
-  document.getElementById('modeEarly').style.background = 'transparent';
-  document.getElementById('modeArrival').style.background = 'transparent';
-  if (m === 'early') {
-    early.style.display = 'block'; arrival.style.display = 'none';
-    document.getElementById('modeEarly').style.background = 'var(--accent)';
-  } else {
-    early.style.display = 'none'; arrival.style.display = 'block';
-    document.getElementById('modeArrival').style.background = 'var(--accent)';
+function toggleMode(m){
+  document.querySelectorAll('.mode-switch button').forEach(b=>b.classList.remove('active'));
+  if(m==='early'){
+    document.getElementById('earlyMode').style.display='block';
+    document.getElementById('arrivalMode').style.display='none';
+    document.getElementById('modeEarly').classList.add('active');
+  }else{
+    document.getElementById('earlyMode').style.display='none';
+    document.getElementById('arrivalMode').style.display='block';
+    document.getElementById('modeArrival').classList.add('active');
   }
 }
 
-/* ===========================
-   FAVORITES (localStorage)
-   =========================== */
-function saveFavorite() {
+/* =========================== FAVORITES =========================== */
+function saveFavorite(){
   const s = document.getElementById('startInput').value.trim();
   const e = document.getElementById('endInput').value.trim();
-  if (!s || !e) return alert('Wpisz start i cel, aby zapisać ulubione.');
+  if(!s||!e) return alert('Wpisz start i cel');
   const key = s + ' → ' + e;
-  let f = JSON.parse(localStorage.getItem('kfav') || '[]');
-  if (!f.includes(key)) {
+  let f = JSON.parse(localStorage.getItem('kfav')||'[]');
+  if(!f.includes(key)){
     f.unshift(key);
-    if (f.length > 30) f = f.slice(0,30);
-    localStorage.setItem('kfav', JSON.stringify(f));
-    loadFavorites();
+    if(f.length>30) f.pop();
+    localStorage.setItem('kfav',JSON.stringify(f));
   }
+  loadFavorites();
 }
-
-function loadFavorites() {
-  const f = JSON.parse(localStorage.getItem('kfav') || '[]');
-  const container = document.getElementById('favoritesList');
-  container.innerHTML = f.map(x => {
-    return `<div class="fav-item"><div style="flex:1;word-break:break-word">${x}</div>
-            <div style="display:flex;gap:8px">
-              <button class="small" onclick="loadFav('${escapeForJS(x)}')">Wczytaj</button>
-              <button class="small" onclick="delFav('${escapeForJS(x)}')">❌</button>
-            </div></div>`;
-  }).join('');
+function loadFavorites(){
+  const list = JSON.parse(localStorage.getItem('kfav')||'[]');
+  const div = document.getElementById('favoritesList');
+  div.innerHTML = list.map(x=>`
+    <div class="fav-item">
+      <div style="flex:1;word-break:break-word">${x}</div>
+      <div>
+        <button class="small" onclick="loadFav('${x.replace(/'/g,"\\'")}')">Wczytaj</button>
+        <button class="small" onclick="delFav('${x.replace(/'/g,"\\'")}')">Delete</button>
+      </div>
+    </div>`).join('');
 }
-function escapeForJS(s){ return s.replace(/'/g,"\\'").replace(/"/g,'\\"'); }
-function loadFav(t) {
+function loadFav(t){
   const [a,b] = t.split(' → ');
-  document.getElementById('startInput').value = a || '';
-  document.getElementById('endInput').value = b || '';
+  document.getElementById('startInput').value = a||'';
+  document.getElementById('endInput').value = b||'';
 }
-function delFav(t) {
-  let f = JSON.parse(localStorage.getItem('kfav') || '[]');
-  f = f.filter(x => x !== t);
-  localStorage.setItem('kfav', JSON.stringify(f));
+function delFav(t){
+  let f = JSON.parse(localStorage.getItem('kfav')||'[]');
+  f = f.filter(x=>x!==t);
+  localStorage.setItem('kfav',JSON.stringify(f));
   loadFavorites();
 }
 
-/* ===========================
-   GEOLOCATION (get address)
-   =========================== */
+/* =========================== GEOLOCATION =========================== */
 function geoLocate(){
-  if (!navigator.geolocation) return alert('Geolokalizacja niedostępna');
+  if(!navigator.geolocation) return alert('Geolokalizacja niedostępna');
   const btn = document.getElementById('geoBtn');
   const prev = btn.textContent;
-  btn.textContent = '⏳';
-  navigator.geolocation.getCurrentPosition(async pos => {
-    try {
-      const latlng = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-      const geocoder = new google.maps.Geocoder();
-      const res = await new Promise((res2) => geocoder.geocode({location:latlng}, (r,s)=>res2({r,s})));
-      if (res.s === 'OK' && res.r[0]) {
-        document.getElementById('startInput').value = res.r[0].formatted_address;
-        map.panTo(latlng);
-        map.setZoom(13);
-      } else {
-        alert('Nie udało się odczytać adresu');
-      }
-    } catch(e){ console.error(e); alert('Błąd geokodowania'); }
-    btn.textContent = prev;
-  }, err => { btn.textContent = prev; alert('Brak zgody na lokalizację'); }, {timeout:10000});
+  btn.textContent = '…';
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const latlng = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({location:latlng}, (results,status)=>{
+      if(status==='OK' && results[0]){
+        document.getElementById('startInput').value = results[0].formatted_address;
+        map.setCenter(latlng);
+        map.setZoom(14);
+      }else alert('Nie udało się ustalić adresu');
+      btn.textContent = prev;
+    });
+  },()=>{ btn.textContent=prev; alert('Brak zgody'); });
 }
 
-/* ===========================
-   SWAP
-   =========================== */
+/* =========================== SWAP =========================== */
 function swapInputs(){
   const a = document.getElementById('startInput').value;
   const b = document.getElementById('endInput').value;
@@ -298,405 +306,238 @@ function swapInputs(){
   clearMapAndResults();
 }
 
-/* ===========================
-   THROTTLE / UTIL
-   =========================== */
-let lastReq = 0;
-async function throttle(ms=220) {
-  const now = Date.now();
-  const diff = now - lastReq;
-  if (diff < ms) await new Promise(r=>setTimeout(r, ms - diff));
-  lastReq = Date.now();
-}
-
-/* simple median smoothing */
-function medianFilter(arr, window=3){
-  if (arr.length <= window) return arr.slice();
-  const out = [];
-  for (let i=0;i<arr.length;i++){
-    const start = Math.max(0, i - Math.floor(window/2));
-    const end = Math.min(arr.length, i + Math.ceil(window/2));
-    const slice = arr.slice(start, end).sort((a,b)=>a-b);
-    out.push(slice[Math.floor(slice.length/2)]);
-  }
-  return out;
-}
-
-/* percentil */
-function percentile(arr, p){
-  if (!arr.length) return null;
-  const s = arr.slice().sort((a,b)=>a-b);
-  const idx = Math.floor((p/100)*(s.length-1));
-  return s[idx];
-}
-
-/* format */
-function fmtTime(d){
-  return d.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
-}
-
-/* ===========================
-   CORE: obtain durations & routes
-   =========================== */
-
-/*
- Strategy:
- - Determine time window (either range of departures for 'early' mode, or compute departures to hit arrival times in arrival mode)
- - For each candidate departure, call DirectionsService with provideRouteAlternatives:true
- - Optionally generate detour waypoints (short/long) and request routes via those
- - Collect all candidate routes, compute ETA (use duration_in_traffic if present)
- - Select routes within tolerance/min+tol or lower percentile
- - Show sweet spot and let user click chart to set route on map
-*/
-
+/* =========================== CORE =========================== */
 async function findBestTime(){
   clearMapAndResults();
   const start = document.getElementById('startInput').value.trim();
   const end = document.getElementById('endInput').value.trim();
-  if (!start || !end) return alert('Wpisz trasę (start i cel).');
+  if(!start||!end) return alert('Podaj start i cel');
 
-  document.getElementById('result').innerHTML = '⏳ Trwa analiza... (może chwilę potrwać)';
-  document.getElementById('chartArea').style.display = 'none';
-  if (chart) { chart.destroy(); chart = null; }
+  document.getElementById('result').innerHTML = 'Analiza tras… (może potrwać 10–30 s)';
+  document.getElementById('chartArea').style.display='none';
+  if(chart){ chart.destroy(); chart=null; }
 
-  const trafficModel = document.querySelector('input[name="trafficModel"]:checked').value || 'best_guess';
+  const trafficModel = document.querySelector('input[name="trafficModel"]:checked').value;
   const detourLevel = document.getElementById('detourLevel').value;
-  const tolerance = Math.max(0,parseInt(document.getElementById('tolerance').value||'1'));
-  const step = parseInt(document.getElementById('stepSelect').value || '10');
+  const tolerance = parseInt(document.getElementById('tolerance').value)||1;
+  const step = parseInt(document.getElementById('stepSelect').value)||10;
 
-  // compute base date = tomorrow
-  const baseDate = new Date();
-  baseDate.setDate(baseDate.getDate()+1);
-  baseDate.setHours(0,0,0,0);
+  // jutro 00:00
+  const base = new Date();
+  base.setDate(base.getDate()+1);
+  base.setHours(0,0,0,0);
 
-  // determine times to test
-  let timesToTest = [];
-  const modeArrivalVisible = document.getElementById('arrivalMode').style.display !== 'none';
-  if (!modeArrivalVisible){
-    const [h1,m1] = (document.getElementById('departFrom').value || '07:00').split(':').map(Number);
-    const [h2,m2] = (document.getElementById('departTo').value || '09:00').split(':').map(Number);
-    const startT = new Date(baseDate); startT.setHours(h1,m1,0,0);
-    const endT = new Date(baseDate); endT.setHours(h2,m2,0,0);
-    let cur = new Date(startT);
-    while (cur <= endT) {
-      timesToTest.push(new Date(cur));
+  // czasy do sprawdzenia
+  const times = [];
+  const isArrivalMode = document.getElementById('arrivalMode').style.display!=='none';
+  if(!isArrivalMode){
+    const [h1,m1] = document.getElementById('departFrom').value.split(':').map(Number);
+    const [h2,m2] = document.getElementById('departTo').value.split(':').map(Number);
+    let cur = new Date(base);
+    cur.setHours(h1,m1);
+    const endT = new Date(base);
+    endT.setHours(h2,m2);
+    while(cur<=endT){
+      times.push(new Date(cur));
       cur = new Date(cur.getTime() + step*60000);
     }
-  } else {
-    // arrival mode: compute departure times that could arrive in the window before arrivalTime
-    const arrivalStr = document.getElementById('arrivalTime').value || '18:00';
-    const windowMins = Math.max(5, parseInt(document.getElementById('arrivalWindow').value||'60'));
-    const [ah,am] = arrivalStr.split(':').map(Number);
-    const arrival = new Date(baseDate); arrival.setHours(ah,am,0,0);
-    // we'll try departures from arrival - window to arrival (step)
-    const startT = new Date(arrival.getTime() - windowMins*60000);
-    let cur = new Date(startT);
-    while (cur <= arrival) {
-      timesToTest.push(new Date(cur));
+  }else{
+    const [ah,am] = document.getElementById('arrivalTime').value.split(':').map(Number);
+    const win = parseInt(document.getElementById('arrivalWindow').value)||60;
+    const arrival = new Date(base);
+    arrival.setHours(ah,am);
+    let cur = new Date(arrival.getTime() - win*60000);
+    while(cur<=arrival){
+      times.push(new Date(cur));
       cur = new Date(cur.getTime() + step*60000);
     }
   }
 
-  // We'll gather candidate route objects: {departure:Date, durationMin:Number, distanceM:Number, route:Object}
   allResults = [];
+  const startLoc = await geocode(start);
+  const endLoc = await geocode(end);
+  if(!startLoc||!endLoc){ alert('Błąd geokodowania'); return; }
 
-  // get lat/lng for start to generate detour waypoints
-  const startCoords = await geocodeAddress(start);
-  const endCoords = await geocodeAddress(end);
-  if (!startCoords || !endCoords) { alert('Nie można zlokalizować jednego z punktów.'); document.getElementById('result').innerHTML='Błąd lokalizacji.'; return; }
+  const detourWaypoints = detourLevel==='none' ? [] : makeDetourWaypoints(startLoc, detourLevel);
 
-  // build detour waypoints depending on detourLevel
-  const detourWaypoints = makeDetourWaypoints(startCoords, detourLevel);
+  for(const t of times){
+    // główna trasa
+    await throttle(400);
+    const main = await getRoutes(start, end, t, trafficModel);
+    main.forEach(r=>allResults.push({depart:t, dur:Math.round(r.eta/60), dist:r.distance, obj:r.raw}));
 
-  // iterate times - we use sequential with throttle to avoid quota issues in testing
-  for (let idx=0; idx<timesToTest.length; idx++){
-    const depart = timesToTest[idx];
-    // 1) request normal routes (no extra waypoint)
-    await throttle(220);
-    const basicRoutes = await getRoutesForTime(start, end, depart, trafficModel, false);
-    basicRoutes.forEach(r => allResults.push({departure: new Date(depart), durationMin: Math.round(r.eta/60), distanceM: r.distance, routeObj: r.raw}));
-
-    // 2) optionally request routes via detour waypoints (short/long)
-    if (detourWaypoints.length){
-      for (const wp of detourWaypoints){
-        await throttle(220);
-        const detRoutes = await getRoutesForTime(start, end, depart, trafficModel, true, wp);
-        detRoutes.forEach(r => allResults.push({departure: new Date(depart), durationMin: Math.round(r.eta/60), distanceM: r.distance, routeObj: r.raw}));
+    // objazdy
+    if(detourWaypoints.length){
+      for(const wp of detourWaypoints){
+        await throttle(400);
+        const alt = await getRoutes(start, end, t, trafficModel, wp);
+        alt.forEach(r=>allResults.push({depart:t, dur:Math.round(r.eta/60), dist:r.distance, obj:r.raw}));
       }
     }
   }
 
-  if (!allResults.length){ document.getElementById('result').innerHTML='Brak danych o trasach (sprawdź API/połączenie).'; return; }
+  if(!allResults.length){ document.getElementById('result').innerHTML='Brak danych'; return; }
 
-  // analyze results
-  // compute minimal duration
-  const durations = allResults.map(x=>x.durationMin);
-  const minDur = Math.min(...durations);
-  // smoothing and percentile option (we'll use percentile 10 as alternative)
-  const lower10 = percentile(durations, 10);
+  const minDur = Math.min(...allResults.map(x=>x.dur));
+  const p10 = percentile(allResults.map(x=>x.dur),10);
+  const sweet = allResults.filter(r=> r.dur <= minDur + tolerance || r.dur <= p10 + tolerance);
+  sweet.sort((a,b)=> a.dur - b.dur || a.depart - b.depart);
+  const winner = sweet.length ? sweet[0] : allResults.sort((a,b)=>a.dur-b.dur)[0];
 
-  // choose sweet set: <= min + tolerance OR <= lower10 + tolerance
-  const sweetIndices = allResults.map((r,i)=> (r.durationMin <= minDur + tolerance || r.durationMin <= lower10 + tolerance) ? i : -1).filter(i=>i>=0);
-
-  // pick winner as earliest departure among sweet with minimal duration
-  const sweetResults = sweetIndices.map(i=>({i, r: allResults[i]})).sort((a,b)=> a.r.durationMin - b.r.durationMin || a.r.departure - b.r.departure);
-  const winner = sweetResults.length ? sweetResults[0].r : allResults.sort((a,b)=>a.durationMin - b.durationMin)[0];
-
-  // UI: display
-  const sweetStart = sweetResults.length ? fmtTime(sweetResults[0].r.departure) : fmtTime(winner.departure);
-  const sweetEnd = sweetResults.length ? fmtTime(sweetResults[sweetResults.length-1].r.departure) : fmtTime(winner.departure);
+  // wynik główny
   document.getElementById('result').innerHTML = `
-    WYJEDŹ O <span style="font-size:20px;color:var(--good)">${fmtTime(winner.departure)}</span><br>
-    ≈ ${winner.durationMin} min w trasie • ${ (winner.distanceM/1000).toFixed(1) } km
+    Najlepszy wyjazd: <span style="font-size:22px;color:var(--good)">${fmt(winner.depart)}</span><br>
+    \( {winner.dur} min • \){(winner.dist/1000).toFixed(1)} km
   `;
-  document.getElementById('sweetWindow').style.display = 'block';
-  document.getElementById('sweetText').textContent = `${sweetStart} – ${sweetEnd}`;
+  document.getElementById('sweetText').textContent = sweet.length 
+    ? `\( {fmt(sweet[0].depart)} – \){fmt(sweet[sweet.length-1].depart)}`
+    : fmt(winner.depart);
+  document.getElementById('sweetWindow').style.display='block';
 
-  // set route on map (use winner's routeObj if available)
-  if (winner && winner.routeObj) {
-    dr.setDirections(winner.routeObj);
-    map.fitBounds(getBoundsFromDirections(winner.routeObj));
-  }
+  dr.setDirections(winner.obj);
+  map.fitBounds(boundsFromResult(winner.obj));
 
-  // draw chart with interactivity
-  drawChartFromResults();
+  // link do Maps
+  document.getElementById('googleMapsLink').href = 
+    `https://www.google.com/maps/dir/?api=1&origin=\( {encodeURIComponent(start)}&destination= \){encodeURIComponent(end)}&travelmode=driving&departure_time=${Math.round(winner.depart.getTime()/1000)}`;
+  document.getElementById('googleMapsLink').style.display='block';
 
-  // show list of top alternatives
-  showTopAlternatives();
-
-  // link to open in maps (winner)
-  try {
-    const w = winner;
-    const origin = encodeURIComponent(document.getElementById('startInput').value);
-    const dest = encodeURIComponent(document.getElementById('endInput').value);
-    document.getElementById('googleMapsLink').href = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`;
-    document.getElementById('googleMapsLink').style.display = 'block';
-  } catch(e){}
+  drawChart();
+  showAlternatives();
 }
 
-/* helper: geocode */
-async function geocodeAddress(addr){
-  const cacheKey = 'g:'+addr;
-  if (sessionCache.has(cacheKey)) return sessionCache.get(cacheKey);
-  try {
-    const g = await new Promise(res => {
-      const ge = new google.maps.Geocoder();
-      ge.geocode({address:addr}, (r,s)=>res({r,s}));
-    });
-    if (g.s === 'OK' && g.r[0]) {
-      const loc = g.r[0].geometry.location;
-      const coords = {lat: loc.lat(), lng: loc.lng()};
-      sessionCache.set(cacheKey, coords);
-      return coords;
-    }
-  } catch(e){ console.error('geocode err',e); }
-  return null;
+/* =========================== HELPERS =========================== */
+async function throttle(ms=400){ // bezpieczne 2–3 zapytania/sek
+  await new Promise(r=>setTimeout(r,ms));
 }
-
-/* generate detour waypoints based on start coords and level */
-function makeDetourWaypoints(startCoords, level){
-  if (!startCoords) return [];
-  const lat = startCoords.lat, lng = startCoords.lng;
-  const out = [];
-  if (level === 'none') return out;
-  const short = level === 'short';
-  const d = short ? 0.18 : 0.45; // approx degrees (~20-50 km depending)
-  const pts = [
-    {lat: lat + d, lng},
-    {lat: lat - d, lng},
-    {lat, lng: lng + d},
-    {lat, lng: lng - d}
+function fmt(d){ return d.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}); }
+function percentile(arr,p){
+  const s=arr.slice().sort((a,b)=>a-b);
+  return s[Math.floor(p/100*(s.length-1))];
+}
+async function geocode(addr){
+  const key='g:'+addr;
+  const cached=localStorage.getItem(key);
+  if(cached) return JSON.parse(cached);
+  const res = await new Promise(r=>{
+    new google.maps.Geocoder().geocode({address:addr, region:'pl'},(res,st)=>r({res,st}));
+  });
+  if(res.st!=='OK') return null;
+  const loc = res.res[0].geometry.location;
+  const obj={lat:loc.lat(),lng:loc.lng()};
+  localStorage.setItem(key,JSON.stringify(obj));
+  return obj;
+}
+function makeDetourWaypoints({lat,lng},level){
+  if(level==='none') return [];
+  const d = level==='short'?0.22:0.5;
+  return [
+    {lat:lat+d,lng},{lat:lat-d,lng},
+    {lat,lng:lng+d},{lat,lng:lng-d}
   ];
-  // return as google.maps.LatLngLiteral style objects
-  return pts;
 }
-
-/* Request routes for given time and optionally waypoint */
-async function getRoutesForTime(origin, destination, departureDate, trafficModel='best_guess', detour=false, waypoint=null){
-  // try cache
-  const key = `dir:${origin}|${destination}|${departureDate.toISOString()}|${trafficModel}|${detour?'1':'0'}|${waypoint?JSON.stringify(waypoint):''}`;
-  if (sessionCache.has(key)) return sessionCache.get(key);
-
-  const res = await new Promise(resolve => {
-    const request = {
-      origin, destination,
-      travelMode: 'DRIVING',
-      provideRouteAlternatives: true,
-      drivingOptions: { departureTime: new Date(departureDate), trafficModel }
+async function getRoutes(o,d,departTime,model='best_guess',waypoint=null){
+  const cacheKey=`r:\( {o}| \){d}|\( {departTime.toISOString()}| \){model}|${waypoint?JSON.stringify(waypoint):''}`;
+  if(sessionCache.has(cacheKey)) return sessionCache.get(cacheKey);
+  const res = await new Promise(resolve=>{
+    const req={
+      origin:o,destination:d,travelMode:'DRIVING',
+      provideRouteAlternatives:true,
+      drivingOptions:{departureTime:departTime,trafficModel:model}
     };
-    if (detour && waypoint) request.waypoints = [{location: waypoint, stopover:false}];
-
-    ds.route(request, (result, status) => {
-      if (status !== 'OK' || !result.routes) return resolve([]);
-      // map each route
-      const out = result.routes.map(r => {
-        const legs = r.legs[0];
-        const duration_in_traffic = legs.duration_in_traffic ? legs.duration_in_traffic.value : legs.duration.value;
-        return {
-          summary: r.summary || '',
-          distance: legs.distance ? legs.distance.value : 0,
-          duration: legs.duration ? legs.duration.value : 0,
-          eta: duration_in_traffic,
-          poly: r.overview_path,
-          raw: result // we keep full result so it can be rendered
-        };
-      });
+    if(waypoint) req.waypoints=[{location:waypoint,stopover:false}];
+    ds.route(req,(result,status)=>{
+      if(status!=='OK') return resolve([]);
+      const out = result.routes.map(rt=>({
+        eta: rt.legs[0].duration_in_traffic ? rt.legs[0].duration_in_traffic.value : rt.legs[0].duration.value,
+        distance: rt.legs[0].distance.value,
+        raw: result
+      }));
       resolve(out);
     });
   });
-
-  sessionCache.set(key, res);
+  sessionCache.set(cacheKey,res);
   return res;
 }
-
-/* get bounds */
-function getBoundsFromDirections(directionsResult){
-  try {
-    const bounds = new google.maps.LatLngBounds();
-    directionsResult.routes[0].overview_path.forEach(p => bounds.extend(p));
-    return bounds;
-  } catch(e){ return map.getBounds(); }
+function boundsFromResult(res){
+  const b = new google.maps.LatLngBounds();
+  res.routes[0].overview_path.forEach(p=>b.extend(p));
+  return b;
 }
-
-/* ===========================
-   CHART & UI helpers
-   =========================== */
-
-function drawChartFromResults(){
-  const ctx = document.getElementById('trafficChart').getContext('2d');
-  // reduce data: group by departure times, take min duration among routes for that departure
+function drawChart(){
   const grouped = {};
-  allResults.forEach(r => {
-    const key = r.departure.toISOString();
-    if (!grouped[key] || grouped[key].durationMin > r.durationMin) grouped[key] = r;
+  allResults.forEach(r=>{
+    const k = r.depart.toISOString();
+    if(!grouped[k] || grouped[k].dur > r.dur) grouped[k]=r;
   });
-  const times = Object.values(grouped).sort((a,b)=>a.departure-b.departure);
-  if (!times.length) return;
-  const labels = times.map(t => fmtTime(t.departure));
-  const data = times.map(t => t.durationMin);
-  // smoothing median
-  const smooth = medianFilter(data, 3);
+  const data = Object.values(grouped).sort((a,b)=>a.depart-b.depart);
+  const labels = data.map(x=>fmt(x.depart));
+  const values = data.map(x=>x.dur);
 
-  document.getElementById('chartArea').style.display = 'block';
-  if (chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Czas w minutach',
-        data: smooth,
-        tension: 0.3,
-        fill: true,
-        backgroundColor: 'rgba(21,101,192,0.08)',
-        borderColor: '#1565c0',
-        pointRadius: 6
-      }]
-    },
-    options: {
-      responsive:true,
-      plugins:{title:{display:true,text:'Czasy dla przebadanych godzin'}},
-      onClick: (evt, elements) => {
-        if (!elements.length) return;
-        const idx = elements[0].index;
-        // find actual result with that departure (closest)
-        const departISO = Object.values(grouped).sort((a,b)=>a.departure-b.departure)[idx].departure.toISOString();
-        const candidates = allResults.filter(r => r.departure.toISOString() === departISO);
-        if (candidates.length) {
-          // pick fastest among candidates
-          const best = candidates.sort((a,b)=>a.durationMin - b.durationMin)[0];
-          if (best && best.routeObj) {
-            dr.setDirections(best.routeObj);
-            map.fitBounds(getBoundsFromDirections(best.routeObj));
-          } else if (best && best.routeObj===undefined && best.routeObjRaw) {
-            dr.setDirections(best.routeObjRaw);
-          } else {
-            // attempt to render using routeObj stored in routeObj.raw (some earlier code)
-            if (best && best.routeObj && best.routeObj.routes) dr.setDirections(best.routeObj);
-          }
-        }
-      }
+  document.getElementById('chartArea').style.display='block';
+  if(chart) chart.destroy();
+  const ctx = document.getElementById('trafficChart').getContext('2d');
+  chart = new Chart(ctx,{
+    type:'line',data:{labels,datasets:[{
+      label:'Czas jazdy (min)',data:values,
+      tension:0.3,fill:true,backgroundColor:'rgba(21,101,192,0.1)',
+      borderColor:'#1565c0',pointRadius:5
+    }]},
+    options:{
+      responsive:true,plugins:{legend:{display:false}},
+      onClick:(e,els)=>{ if(els.length) showRouteFromChart(els[0].index); },
+      scales:{x:{ticks:{color:'var(--text)'},grid:{color:'var(--grid)'}},
+              y:{ticks:{color:'var(--text)'},grid:{color:'var(--grid)'}}}
     }
   });
   updateChartTheme();
 }
-
 function updateChartTheme(){
-  if (!chart) return;
-  const dark = document.body.getAttribute('data-theme') === 'dark';
-  chart.options.scales = chart.options.scales || {};
-  chart.options.scales.x = chart.options.scales.x || {};
-  chart.options.scales.y = chart.options.scales.y || {};
-  chart.options.scales.x.ticks = {color: dark ? '#e6eef8' : '#111'};
-  chart.options.scales.y.ticks = {color: dark ? '#e6eef8' : '#111'};
+  if(!chart) return;
+  const dark = document.body.getAttribute('data-theme')==='dark';
+  chart.options.scales.x.ticks.color = dark?'#e6eef8':'#111';
+  chart.options.scales.y.ticks.color = dark?'#e6eef8':'#111';
+  chart.options.scales.x.grid.color = 'var(--grid)';
+  chart.options.scales.y.grid.color = 'var(--grid)';
+  chart.data.datasets[0].borderColor = dark?'#7bb3ff':'#1565c0';
+  chart.data.datasets[0].backgroundColor = dark?'rgba(123,179,255,0.15)':'rgba(21,101,192,0.1)';
   chart.update();
 }
-
-function showTopAlternatives(){
-  const div = document.getElementById('routes');
-  // create list of unique best routes (min per departure)
-  // We'll show top 6 by time improvement
-  const uniq = {};
-  allResults.forEach(r => {
-    const key = r.departure.toISOString() + '|' + Math.round(r.durationMin);
-    if (!uniq[key]) uniq[key] = r;
-  });
-  const arr = Object.values(uniq).sort((a,b)=>a.durationMin - b.durationMin).slice(0,8);
-  // render small boxes after result
-  let html = '<div style="margin-top:8px"><b>Top alternatywy (wybrane):</b>';
-  arr.forEach((r,i)=> {
-    html += `<div class="route-box">
-      <div style="display:flex;justify-content:space-between">
-        <div><b>${fmtTime(r.departure)}</b> • ${r.durationMin} min</div>
-        <div><button class="small" onclick="renderSpecificRoute(${i})">Pokaż</button></div>
-      </div>
-      <div class="muted">${(r.distanceM/1000).toFixed(1)} km</div>
-    </div>`;
-  });
-  html += '</div>';
-  document.getElementById('result').insertAdjacentHTML('afterend', html);
-  // store last top array
-  window._kork_top_alts = arr;
-}
-
-function renderSpecificRoute(idx){
-  const arr = window._kork_top_alts || [];
-  const r = arr[idx];
-  if (!r) return;
-  if (r.routeObj) {
-    dr.setDirections(r.routeObj);
-    map.fitBounds(getBoundsFromDirections(r.routeObj));
-  } else {
-    // try fallback: call route again for that departure
-    (async ()=> {
-      const basic = await getRoutesForTime(document.getElementById('startInput').value, document.getElementById('endInput').value, r.departure, document.querySelector('input[name="trafficModel"]:checked').value || 'best_guess');
-      if (basic.length && basic[0].raw) dr.setDirections(basic[0].raw);
-    })();
+function showRouteFromChart(idx){
+  const data = Object.values(/*grouped from drawChart*/);
+  const r = data[idx];
+  if(r && r.obj){
+    dr.setDirections(r.obj);
+    map.fitBounds(boundsFromResult(r.obj));
   }
 }
-
-/* clear */
-function clearMapAndResults(){
-  try { dr.setDirections({routes: []}); } catch(e){}
-  document.getElementById('result').innerHTML = '';
-  document.getElementById('sweetWindow').style.display = 'none';
-  document.getElementById('chartArea').style.display = 'none';
-  if (chart) { chart.destroy(); chart = null; }
-  // remove route boxes under result
-  const after = document.getElementById('result').nextElementSibling;
-  if (after && after.innerHTML && after.innerHTML.includes('Top alternatywy')) after.remove();
+function showAlternatives(){
+  const uniq = {};
+  allResults.forEach(r=>{ const k=r.depart.toISOString()+':'+r.dur; if(!uniq[k]) uniq[k]=r; });
+  const top = Object.values(uniq).sort((a,b)=>a.dur-b.dur).slice(0,8);
+  window._top = top; // na potrzeby kliknięć
+  let html = '<div style="margin-top:16px"><b>Top alternatywy:</b>';
+  top.forEach((r,i)=> {
+    html+=`<div class="route-box">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><b>\( {fmt(r.depart)}</b> → \){r.dur} min <span class="small-inline">${(r.dist/1000).toFixed(1)} km</span></div>
+        <button class="small" onclick="dr.setDirections(window._top[\( {i}].obj);map.fitBounds(boundsFromResult(window._top[ \){i}].obj))">Pokaż</button>
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  document.getElementById('routes').innerHTML = html;
 }
-
-/* ===========================
-   Utilities
-   =========================== */
-function fmtTime(d){ return d.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}); }
-function percentile(arr,p){ if(!arr.length)return 0; const s=arr.slice().sort((a,b)=>a-b); const idx=Math.floor((p/100)*(s.length-1)); return s[idx]; }
-
-/* ===========================
-   END
-   =========================== */
+function clearMapAndResults(){
+  dr.setDirections({routes:[]});
+  document.getElementById('result').innerHTML='Wypełnij pola…';
+  document.getElementById('sweetWindow').style.display='none';
+  document.getElementById('chartArea').style.display='none';
+  document.getElementById('routes').innerHTML='';
+  document.getElementById('googleMapsLink').style.display='none';
+  if(chart){chart.destroy();chart=null;}
+  allResults=[];
+}
 </script>
-
 </body>
 </html>
