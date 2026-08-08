@@ -403,4 +403,97 @@
       }
       done++;
       bumpDailyCounter(1);
-      progressFill.style.width = Math.round(done
+      progressFill.style.width = Math.round(done/n*100) + "%";
+      current.setMinutes(current.getMinutes() + step);
+    }
+
+    progressBar.style.display = "none";
+    btn.disabled = false;
+    updateCostWarning();
+
+    if (allResults.length === 0) {
+      if (!document.getElementById("result").innerHTML.startsWith("❌"))
+        document.getElementById("result").innerHTML = "❌ Brak danych — sprawdź adresy lub spróbuj ponownie";
+      return;
+    }
+    if (errors > 0) {
+      document.getElementById("result").innerHTML = `⚠️ ${errors} zapytań nie powiodło się`;
+    }
+
+    const minTime = Math.min(...allResults.map(r => r.time));
+    const candidates = allResults.filter(r => r.time <= minTime + 1).sort((a,b) => a.departure - b.departure);
+    const winner = candidates[0];
+
+    const sweetStart = candidates[0].departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
+    const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
+    const bestHour = winner.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
+
+    document.getElementById("result").innerHTML = `
+      <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
+        WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${bestHour}</strong><br><br>
+        ≈ ${winner.time} min (${winner.distance.toFixed(1)} km)
+      </div>`;
+
+    document.getElementById("sweetWindow").style.display = "block";
+    document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
+
+    if (shortestDistance !== Infinity) {
+      const diffKm = winner.distance - shortestDistance;
+      const diffMin = fastestTime - winner.time;
+      if (Math.abs(diffKm) > 0.5) {
+        document.getElementById("routeInfo").style.display = "block";
+        document.getElementById("routeInfo").innerHTML = diffKm > 0
+          ? `+${diffKm.toFixed(1)} km, ale –${diffMin} min vs najkrótsza`
+          : `–${(-diffKm).toFixed(1)} km, ale +${(-diffMin)} min vs najszybsza`;
+      }
+    }
+
+    drawRoute(winner.points);
+
+    const startTxt = document.getElementById("startInput").value;
+    const endTxt = document.getElementById("endInput").value;
+    const depUnix = Math.floor(winner.departure.getTime() / 1000);
+    // Ten link NIE zużywa API - to zwykły deep link, darmowy
+    document.getElementById("googleMapsLink").href =
+      `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(startTxt)}&destination=${encodeURIComponent(endTxt)}&travelmode=driving&departure_time=${depUnix}`;
+    document.getElementById("googleMapsLink").style.display = "block";
+
+    drawChart();
+  }
+
+  function drawChart() {
+    document.getElementById("chartContainer").style.display = "block";
+    const ctx = document.getElementById('trafficChart').getContext('2d');
+    if (chart) chart.destroy();
+
+    const labels = allResults.map(r => r.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"}));
+    const data = allResults.map(r => r.time);
+    const min = Math.min(...data);
+    const green = allResults.map((r,i) => data[i] <= min + 1 ? i : -1).filter(i => i >= 0);
+
+    chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Czas w korkach (min)',
+          data: data,
+          borderColor: '#d32f2f',
+          backgroundColor: 'rgba(211,47,47,0.1)',
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: data.map((_,i) => green.includes(i) ? '#1b5e20' : '#ff5252'),
+          pointRadius: data.map((_,i) => green.includes(i) ? 12 : 6)
+        }]
+      },
+      options: {
+        onClick: (e, el) => {
+          if (el.length > 0) drawRoute(allResults[el[0].index].points);
+        },
+        plugins: { title: { display: true, text: 'Kliknij punkt → zmieni się trasa na mapie', font: {size: 16}}}
+      }
+    });
+  }
+</script>
+</body>
+</html>
