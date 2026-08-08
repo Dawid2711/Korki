@@ -59,6 +59,14 @@
     <button class="main-btn" id="saveKeyBtn" style="margin-top:8px">Zapisz klucz</button>
   </div>
 
+  <div class="setup-notice" id="hereSetupNotice" style="display:none">
+    ⚙️ <strong>Opcjonalnie – drugie źródło danych (HERE):</strong> żeby porównywać wyniki TomTom z HERE,
+    załóż darmowe konto na <strong>developer.here.com</strong> (bez karty) i wklej klucz.
+    Bez tego korkometr działa wyłącznie na TomTom.
+    <input type="text" id="hereKeyInput" placeholder="Wklej klucz HERE tutaj (opcjonalnie)">
+    <button class="main-btn" id="saveHereKeyBtn" style="margin-top:8px">Zapisz klucz HERE</button>
+  </div>
+
   <div class="card">
     <div class="field">
       <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?" autocomplete="off">
@@ -137,6 +145,21 @@
     refreshSetupNotice();
   };
   refreshSetupNotice();
+
+  // ---------- KLUCZ HERE (opcjonalny, drugie źródło) ----------
+  let HERE_KEY = localStorage.getItem("here_key") || "";
+  function refreshHereNotice() {
+    document.getElementById("hereSetupNotice").style.display = HERE_KEY ? "none" : "block";
+  }
+  document.getElementById("hereKeyInput").value = HERE_KEY;
+  document.getElementById("saveHereKeyBtn").onclick = () => {
+    const v = document.getElementById("hereKeyInput").value.trim();
+    if (!v) return alert("Wklej klucz");
+    HERE_KEY = v;
+    localStorage.setItem("here_key", v);
+    refreshHereNotice();
+  };
+  refreshHereNotice();
 
   // Prosty dzienny licznik zapytań, żeby nie przekroczyć darmowego limitu
   function bumpDailyCounter(n) {
@@ -326,13 +349,17 @@
   updateCostWarning();
 
   // ---------- ROUTING (TomTom) ----------
-  async function getRoute(startC, endC, time) {
+  async function getRouteTomTom(startC, endC, time) {
     const iso = time.toISOString().split(".")[0];
     const url = `https://api.tomtom.com/routing/1/calculateRoute/${startC.lat},${startC.lon}:${endC.lat},${endC.lon}/json?key=${TOMTOM_KEY}&departAt=${iso}&traffic=true&travelMode=car`;
     const r = await fetch(url);
     if (!r.ok) {
-      if (r.status === 403) throw new Error("Błędny klucz TomTom lub przekroczony limit");
-      return null;
+      let bodyText = "";
+      try { bodyText = JSON.stringify(await r.json()); } catch(e) {}
+      console.error("TomTom error", r.status, bodyText);
+      if (r.status === 403) throw new Error("Błędny klucz TomTom lub przekroczony limit (403)");
+      if (r.status === 400) throw new Error("TomTom odrzucił zapytanie (400) - sprawdź adresy: " + bodyText.slice(0,150));
+      throw new Error(`TomTom błąd ${r.status}: ${bodyText.slice(0,150)}`);
     }
     const data = await r.json();
     if (!data.routes || !data.routes.length) return null;
@@ -340,11 +367,51 @@
     const timeMin = Math.round(route.summary.travelTimeInSeconds / 60);
     const distKm = route.summary.lengthInMeters / 1000;
     const points = route.legs[0].points;
-    return {departure: time, time: timeMin, distance: distKm, points};
+    return {time: timeMin, distance: distKm, points};
+  }
+
+  // ---------- ROUTING (HERE) - opcjonalne drugie źródło, tylko czas na porównanie ----------
+  async function getRouteHere(startC, endC, time) {
+    if (!HERE_KEY) return null;
+    const iso = time.toISOString();
+    const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${startC.lat},${startC.lon}&destination=${endC.lat},${endC.lon}&departureTime=${iso}&return=summary&apiKey=${HERE_KEY}`;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) {
+        console.error("HERE error", r.status, await r.text().catch(()=>""));
+        return null; // HERE jest opcjonalne - nie przerywamy głównego liczenia
+      }
+      const data = await r.json();
+      const summary = data.routes && data.routes[0] && data.routes[0].sections && data.routes[0].sections[0].summary;
+      if (!summary) return null;
+      return {time: Math.round(summary.duration / 60), distance: summary.length / 1000};
+    } catch (e) {
+      console.error("HERE fetch failed", e);
+      return null;
+    }
+  }
+
+  // Łączy oba źródła: jeśli HERE dostępne, wynik to średnia czasów obu; geometria trasy zawsze z TomTom
+  async function getRoute(startC, endC, time) {
+    const [tt, here] = await Promise.all([
+      getRouteTomTom(startC, endC, time),
+      getRouteHere(startC, endC, time)
+    ]);
+    if (!tt) return null;
+    const combinedTime = here ? Math.round((tt.time + here.time) / 2) : tt.time;
+    return {
+      departure: time,
+      time: combinedTime,
+      tomtomTime: tt.time,
+      hereTime: here ? here.time : null,
+      distance: tt.distance,
+      points: tt.points
+    };
   }
 
   // ---------- GŁÓWNA LOGIKA ----------
   let allResults = [], shortestDistance = Infinity, fastestTime = Infinity, chart = null;
+
 
   document.getElementById("bestTimeBtn").onclick = findBestTime;
 
@@ -387,7 +454,7 @@
     const endTime = new Date(tomorrow);
     endTime.setHours(h2,m2);
 
-    let done = 0, errors = 0;
+    let done = 0, errors = 0, lastError = "";
     while (current <= endTime) {
       try {
         const res = await getRoute(startCoord, endCoord, new Date(current));
@@ -398,8 +465,8 @@
         } else errors++;
       } catch (e) {
         errors++;
-        document.getElementById("result").innerHTML = `❌ ${e.message}`;
-        if (e.message.includes("klucz")) break;
+        lastError = e.message;
+        if (e.message.includes("klucz") || e.message.includes("403")) break;
       }
       done++;
       bumpDailyCounter(1);
@@ -412,8 +479,9 @@
     updateCostWarning();
 
     if (allResults.length === 0) {
-      if (!document.getElementById("result").innerHTML.startsWith("❌"))
-        document.getElementById("result").innerHTML = "❌ Brak danych — sprawdź adresy lub spróbuj ponownie";
+      document.getElementById("result").innerHTML = lastError
+        ? `❌ ${lastError}`
+        : "❌ Brak danych — sprawdź czy oba adresy są wybrane z listy podpowiedzi";
       return;
     }
     if (errors > 0) {
@@ -428,10 +496,15 @@
     const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
     const bestHour = winner.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
 
+    const sourcesNote = winner.hereTime !== null
+      ? `<div style="font-size:14px;margin-top:8px;color:#555">TomTom: ${winner.tomtomTime} min · HERE: ${winner.hereTime} min · wynik uśredniony</div>`
+      : `<div style="font-size:14px;margin-top:8px;color:#555">Źródło: TomTom (dodaj klucz HERE, żeby porównać)</div>`;
+
     document.getElementById("result").innerHTML = `
       <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
         WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${bestHour}</strong><br><br>
         ≈ ${winner.time} min (${winner.distance.toFixed(1)} km)
+        ${sourcesNote}
       </div>`;
 
     document.getElementById("sweetWindow").style.display = "block";
