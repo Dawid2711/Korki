@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr 8.5 – IDEALNA WERSJA</title>
+  <title>Korkometr Free – OSM + TomTom</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{--bg:#f5f7fa;--card:#fff;--text:#222;--primary:#1565c0;--success:#1b5e20;--warning:#ff9800}
@@ -12,45 +14,67 @@
     .container{max-width:540px;margin:0 auto;padding:15px}
     h2{text-align:center;color:var(--primary);margin:20px 0 8px;font-size:24px}
     .card{background:var(--card);border-radius:16px;padding:20px;margin-bottom:20px;box-shadow:0 8px 25px rgba(0,0,0,.12)}
+    .field{position:relative}
     input[type=text],select,input[type=time]{width:100%;padding:16px;margin:12px 0;font-size:17px;border-radius:12px;border:1px solid #ddd;background:var(--card);color:var(--text);box-sizing:border-box}
+    .suggestions{position:absolute;left:0;right:0;top:60px;background:var(--card);border-radius:12px;box-shadow:0 8px 20px rgba(0,0,0,.2);z-index:200;max-height:220px;overflow-y:auto;display:none}
+    .suggestion-item{padding:12px 16px;cursor:pointer;font-size:15px;border-bottom:1px solid rgba(0,0,0,.05)}
+    .suggestion-item:hover{background:rgba(21,101,192,.08)}
     .buttons-row{display:flex;gap:12px;justify-content:center;margin:12px 0}
     .btn{padding:14px;border-radius:50%;width:56px;height:56px;border:none;font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,.2)}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
     .geo{background:var(--warning);color:#fff}
     .swap{background:var(--primary);color:#fff}
     .fav{background:#e91e63;color:#fff}
     .theme{position:fixed;top:15px;right:15px;background:var(--primary);color:#fff;z-index:100}
     .main-btn{background:var(--success);color:#fff;padding:18px;font-size:19px;font-weight:bold;border-radius:100px;width:100%;border:none;margin-top:20px;cursor:pointer}
+    .main-btn:disabled{background:#888;cursor:not-allowed}
     #result{text-align:center;font-size:21px;padding:30px;border-radius:16px}
     #map{height:380px;border-radius:16px;overflow:hidden;margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.15)}
     .google-maps-btn{display:block;background:#4285f4;color:#fff;text-align:center;padding:18px;font-size:18px;border-radius:100px;text-decoration:none;margin:20px 0;font-weight:bold}
     .sweet-window{background:#e8f5e9;padding:25px;border-radius:16px;text-align:center;font-size:19px;margin:20px 0;border:3px solid var(--success)}
     .chart-container{background:var(--card);border-radius:16px;padding:20px;margin:20px 0;display:none}
-    .option-row{display:flex;align-items:center;margin:12px 0;font-size:16px}
-    .option-row input[type="radio"]{margin-right:10px;transform:scale(1.3)}
-    .option-row label{cursor:pointer;flex:1}
     .route-info{font-size:16px;text-align:center;padding:15px;background:rgba(255,152,0,.15);border-radius:12px;margin:15px 0;font-weight:bold}
-    .fav-item{padding:12px;background:rgba(0,0,0,.05);border-radius:10px;margin:8px 0;cursor:pointer}
+    .fav-item{display:flex;justify-content:space-between;align-items:center;padding:12px;background:rgba(0,0,0,.05);border-radius:10px;margin:8px 0}
+    .fav-item span{cursor:pointer;flex:1}
+    .fav-del{background:none;border:none;color:#d32f2f;font-size:18px;cursor:pointer;padding:0 8px}
+    .cost-warning{font-size:14px;text-align:center;padding:10px;background:rgba(255,152,0,.15);border-radius:10px;margin:8px 0}
+    .quota-warning{font-size:14px;text-align:center;padding:10px;background:rgba(211,47,47,.15);border-radius:10px;margin:8px 0;color:#d32f2f;display:none}
+    .progress-bar{height:6px;background:rgba(0,0,0,.1);border-radius:3px;overflow:hidden;margin:10px 0;display:none}
+    .progress-fill{height:100%;background:var(--primary);width:0%;transition:width .2s}
+    .setup-notice{background:#fff3e0;border:2px solid var(--warning);border-radius:12px;padding:15px;margin-bottom:20px;font-size:14px;line-height:1.5}
+    .setup-notice code{background:rgba(0,0,0,.08);padding:2px 6px;border-radius:4px}
   </style>
 </head>
 <body>
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr 8.5 – IDEALNA WERSJA</h2>
+  <h2>🚗 Korkometr Free</h2>
+
+  <div class="setup-notice" id="setupNotice">
+    ⚙️ <strong>Pierwsze uruchomienie:</strong> potrzebujesz darmowego klucza TomTom.
+    Załóż konto na <strong>developer.tomtom.com</strong> (bez karty kredytowej, 2500 zapytań/dzień gratis),
+    skopiuj klucz i wklej poniżej. Zapisze się w Twojej przeglądarce.
+    <input type="text" id="tomtomKeyInput" placeholder="Wklej klucz TomTom tutaj">
+    <button class="main-btn" id="saveKeyBtn" style="margin-top:8px">Zapisz klucz</button>
+  </div>
 
   <div class="card">
-    <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?">
+    <div class="field">
+      <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?" autocomplete="off">
+      <div class="suggestions" id="startSuggestions"></div>
+    </div>
     <div class="buttons-row">
       <button class="btn geo" id="geoBtn">📍</button>
       <button class="btn swap" id="swapBtn">↔</button>
       <button class="btn fav" id="saveFavBtn">❤️</button>
     </div>
-    <input type="text" id="endInput" placeholder="🏁 Dokąd zmierzasz?">
+    <div class="field">
+      <input type="text" id="endInput" placeholder="🏁 Dokąd zmierzasz?" autocomplete="off">
+      <div class="suggestions" id="endSuggestions"></div>
+    </div>
 
     <div id="favoritesList" style="margin:20px 0"></div>
-
-    <div class="option-row"><input type="radio" name="trafficModel" value="bestguess" id="tmBest" checked><label for="tmBest">🚦 Realistycznie</label></div>
-    <div class="option-row"><input type="radio" name="trafficModel" value="pessimistic" id="tmPess"><label for="tmPess">🚧 Pesymistycznie</label></div>
 
     <input type="time" id="departFrom" value="14:00">
     <input type="time" id="departTo" value="20:00">
@@ -58,7 +82,12 @@
       <option value="5">co 5 min</option>
       <option value="10" selected>co 10 min</option>
       <option value="15">co 15 min</option>
+      <option value="30">co 30 min (oszczędnie)</option>
     </select>
+
+    <div class="cost-warning" id="costWarning"></div>
+    <div class="quota-warning" id="quotaWarning">⚠️ Uwaga: to zbliża się do dziennego darmowego limitu TomTom (2500). Rozważ większy krok.</div>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
 
     <button class="main-btn" id="bestTimeBtn">🚀 Oblicz najlepszą godzinę!</button>
   </div>
@@ -81,7 +110,7 @@
 </div>
 
 <script>
-  // Tryb ciemny
+  // ---------- MOTYW ----------
   const themeBtn = document.getElementById('themeToggle');
   const dark = localStorage.getItem("kork_dark") === "1" || (!localStorage.getItem("kork_dark") && window.matchMedia('(prefers-color-scheme: dark)').matches);
   if (dark) document.body.setAttribute('data-theme','dark');
@@ -93,61 +122,253 @@
     localStorage.setItem("kork_dark", isDark ? "1" : "0");
   };
 
-  let map, ds, dr, chart = null;
-  let allResults = [], shortestDistance = Infinity, fastestTime = Infinity;
+  // ---------- KLUCZ TOMTOM ----------
+  // Wpisany na sztywno do osobistego użytku. Nie wrzucaj tego pliku publicznie (np. GitHub) z kluczem w środku.
+  let TOMTOM_KEY = "5e420f45-bf80-4537-989b-d47cd857c383";
+  function refreshSetupNotice() {
+    document.getElementById("setupNotice").style.display = TOMTOM_KEY ? "none" : "block";
+  }
+  document.getElementById("tomtomKeyInput").value = TOMTOM_KEY;
+  document.getElementById("saveKeyBtn").onclick = () => {
+    const v = document.getElementById("tomtomKeyInput").value.trim();
+    if (!v) return alert("Wklej klucz");
+    TOMTOM_KEY = v;
+    localStorage.setItem("tomtom_key", v);
+    refreshSetupNotice();
+  };
+  refreshSetupNotice();
 
-  function initMap() {
-    map = new google.maps.Map(document.getElementById("map"), {center:{lat:52.2297,lng:21.0122},zoom:11,gestureHandling:"greedy"});
-    ds = new google.maps.DirectionsService();
-    dr = new google.maps.DirectionsRenderer({map, polylineOptions:{strokeColor:"#1565c0",strokeWeight:8}});
-
-    new google.maps.places.Autocomplete(document.getElementById("startInput"), {componentRestrictions:{country:"pl"}});
-    new google.maps.places.Autocomplete(document.getElementById("endInput"), {componentRestrictions:{country:"pl"}});
-
-    document.getElementById("swapBtn").onclick = () => {
-      const a = document.getElementById("startInput").value;
-      const b = document.getElementById("endInput").value;
-      document.getElementById("startInput").value = b;
-      document.getElementById("endInput").value = a;
-    };
-
-    document.getElementById("geoBtn").onclick = () => {
-      if (!navigator.geolocation) return alert("Brak geolokacji");
-      document.getElementById("geoBtn").innerHTML = "⏳";
-      navigator.geolocation.getCurrentPosition(pos => {
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({location:{lat:pos.coords.latitude,lng:pos.coords.longitude}}, (r,s) => {
-          document.getElementById("geoBtn").innerHTML = "📍";
-          if (s==="OK") document.getElementById("startInput").value = r[0].formatted_address;
-        });
-      }, () => document.getElementById("geoBtn").innerHTML = "📍");
-    };
-
-    document.getElementById("saveFavBtn").onclick = () => {
-      const s = document.getElementById("startInput").value.trim();
-      const e = document.getElementById("endInput").value.trim();
-      if (!s || !e) return;
-      let f = JSON.parse(localStorage.getItem("kfav")||"[]");
-      const key = s+" → "+e;
-      if (!f.includes(key)) f.unshift(key);
-      localStorage.setItem("kfav", JSON.stringify(f.slice(0,20)));
-      loadFavorites();
-    };
-
-    function loadFavorites() {
-      const f = JSON.parse(localStorage.getItem("kfav")||"[]");
-      document.getElementById("favoritesList").innerHTML = f.map(x=>`<div class="fav-item" onclick="loadFav('\( {x}')"> \){x}</div>`).join("");
-    }
-    window.loadFav = t => { const [a,b] = t.split(" → "); document.getElementById("startInput").value = a; document.getElementById("endInput").value = b; };
-    loadFavorites();
-
-    document.getElementById("bestTimeBtn").onclick = findBestTime;
+  // Prosty dzienny licznik zapytań, żeby nie przekroczyć darmowego limitu
+  function bumpDailyCounter(n) {
+    const today = new Date().toDateString();
+    let d = JSON.parse(localStorage.getItem("tomtom_usage")||"{}");
+    if (d.date !== today) d = {date: today, count: 0};
+    d.count += n;
+    localStorage.setItem("tomtom_usage", JSON.stringify(d));
+    return d.count;
+  }
+  function getDailyCounter() {
+    const today = new Date().toDateString();
+    let d = JSON.parse(localStorage.getItem("tomtom_usage")||"{}");
+    return d.date === today ? d.count : 0;
   }
 
+  // ---------- MAPA (Leaflet + OSM, bez klucza) ----------
+  const map = L.map('map').setView([52.2297, 21.0122], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  let routeLine = null;
+
+  function drawRoute(points) {
+    if (routeLine) map.removeLayer(routeLine);
+    const latlngs = points.map(p => [p.latitude, p.longitude]);
+    routeLine = L.polyline(latlngs, {color:'#1565c0', weight:6}).addTo(map);
+    map.fitBounds(routeLine.getBounds(), {padding:[30,30]});
+  }
+
+  // ---------- GEOKODOWANIE / AUTOCOMPLETE (Nominatim, bez klucza) ----------
+  let startCoord = null, endCoord = null;
+  let debounceTimers = {};
+
+  async function nominatimSearch(q) {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=pl&addressdetails=0&limit=5&q=${encodeURIComponent(q)}`;
+    try {
+      const r = await fetch(url, {headers: {"Accept-Language":"pl"}});
+      if (!r.ok) {
+        console.error("Nominatim HTTP error:", r.status);
+        showAutocompleteError();
+        return [];
+      }
+      return await r.json();
+    } catch (err) {
+      // Najczęstsza przyczyna: strona otwarta w sandboksowanym podglądzie bez dostępu do sieci.
+      // Pobierz plik i otwórz go bezpośrednio w przeglądarce (Chrome/Firefox/Safari).
+      console.error("Nominatim fetch failed - prawdopodobnie brak dostępu do sieci w tym podglądzie:", err);
+      showAutocompleteError();
+      return [];
+    }
+  }
+
+  let autocompleteErrorShown = false;
+  function showAutocompleteError() {
+    if (autocompleteErrorShown) return;
+    autocompleteErrorShown = true;
+    const el = document.getElementById("costWarning");
+    el.style.color = "#d32f2f";
+    el.textContent = "⚠️ Podpowiedzi adresów nie działają w tym podglądzie. Pobierz plik i otwórz go w normalnej przeglądarce (nie w podglądzie Claude).";
+  }
+
+  function setupAutocomplete(inputId, suggBoxId, coordSetter) {
+    const input = document.getElementById(inputId);
+    const box = document.getElementById(suggBoxId);
+    input.addEventListener("input", () => {
+      coordSetter(null); // reset coord, bo user edytuje ręcznie
+      const q = input.value.trim();
+      clearTimeout(debounceTimers[inputId]);
+      if (q.length < 3) { box.style.display = "none"; return; }
+      debounceTimers[inputId] = setTimeout(async () => {
+        const results = await nominatimSearch(q);
+        if (!results.length) { box.style.display = "none"; return; }
+        box.innerHTML = results.map((r,i) =>
+          `<div class="suggestion-item" data-i="${i}">${r.display_name}</div>`
+        ).join("");
+        box.style.display = "block";
+        box.querySelectorAll(".suggestion-item").forEach(el => {
+          el.onclick = () => {
+            const r = results[parseInt(el.dataset.i)];
+            input.value = r.display_name;
+            coordSetter({lat: parseFloat(r.lat), lon: parseFloat(r.lon)});
+            box.style.display = "none";
+          };
+        });
+      }, 400); // debounce - szanujemy limit Nominatim (max 1 req/s)
+    });
+    document.addEventListener("click", e => {
+      if (!box.contains(e.target) && e.target !== input) box.style.display = "none";
+    });
+  }
+  setupAutocomplete("startInput", "startSuggestions", c => startCoord = c);
+  setupAutocomplete("endInput", "endSuggestions", c => endCoord = c);
+
+  async function resolveCoord(inputId, currentCoord) {
+    if (currentCoord) return currentCoord;
+    const text = document.getElementById(inputId).value.trim();
+    if (!text) return null;
+    const results = await nominatimSearch(text);
+    if (!results.length) return null;
+    return {lat: parseFloat(results[0].lat), lon: parseFloat(results[0].lon)};
+  }
+
+  // ---------- PRZYCISKI ----------
+  document.getElementById("swapBtn").onclick = () => {
+    const a = document.getElementById("startInput").value, ac = startCoord;
+    const b = document.getElementById("endInput").value, bc = endCoord;
+    document.getElementById("startInput").value = b; startCoord = bc;
+    document.getElementById("endInput").value = a; endCoord = ac;
+  };
+
+  document.getElementById("geoBtn").onclick = () => {
+    if (!navigator.geolocation) return alert("Brak geolokacji");
+    const geoBtn = document.getElementById("geoBtn");
+    geoBtn.disabled = true; geoBtn.innerHTML = "⏳";
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const {latitude:lat, longitude:lon} = pos.coords;
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`, {headers:{"Accept-Language":"pl"}});
+        const data = await r.json();
+        document.getElementById("startInput").value = data.display_name || `${lat},${lon}`;
+        startCoord = {lat, lon};
+      } catch(e) {
+        document.getElementById("startInput").value = `${lat},${lon}`;
+        startCoord = {lat, lon};
+      }
+      geoBtn.disabled = false; geoBtn.innerHTML = "📍";
+    }, () => { geoBtn.disabled = false; geoBtn.innerHTML = "📍"; alert("Brak dostępu do lokalizacji"); });
+  };
+
+  document.getElementById("saveFavBtn").onclick = () => {
+    const s = document.getElementById("startInput").value.trim();
+    const e = document.getElementById("endInput").value.trim();
+    if (!s || !e) return;
+    let f = JSON.parse(localStorage.getItem("kfav")||"[]");
+    const key = s+" → "+e;
+    if (!f.some(x => x.key === key)) f.unshift({key, startCoord, endCoord});
+    localStorage.setItem("kfav", JSON.stringify(f.slice(0,20)));
+    loadFavorites();
+  };
+
+  function loadFavorites() {
+    const f = JSON.parse(localStorage.getItem("kfav")||"[]");
+    document.getElementById("favoritesList").innerHTML = f.map((x,i) =>
+      `<div class="fav-item"><span data-i="${i}">${x.key}</span><button class="fav-del" data-i="${i}">✕</button></div>`
+    ).join("");
+    document.querySelectorAll("#favoritesList .fav-item span").forEach(el => {
+      el.onclick = () => {
+        const item = f[parseInt(el.dataset.i)];
+        const [a,b] = item.key.split(" → ");
+        document.getElementById("startInput").value = a; startCoord = item.startCoord;
+        document.getElementById("endInput").value = b; endCoord = item.endCoord;
+      };
+    });
+    document.querySelectorAll("#favoritesList .fav-del").forEach(el => {
+      el.onclick = () => {
+        f.splice(parseInt(el.dataset.i),1);
+        localStorage.setItem("kfav", JSON.stringify(f));
+        loadFavorites();
+      };
+    });
+  }
+  loadFavorites();
+
+  // ---------- KOSZT / ZAPYTANIA ----------
+  function computeStepCount() {
+    const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
+    const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
+    const step = parseInt(document.getElementById("stepSelect").value);
+    const totalMin = (h2*60+m2) - (h1*60+m1);
+    if (totalMin <= 0 || isNaN(totalMin)) return 0;
+    return Math.floor(totalMin/step) + 1;
+  }
+  function updateCostWarning() {
+    const n = computeStepCount();
+    const used = getDailyCounter();
+    const el = document.getElementById("costWarning");
+    const qw = document.getElementById("quotaWarning");
+    if (n <= 0) { el.textContent = ""; qw.style.display = "none"; return; }
+    el.textContent = `ℹ️ To wykona ${n} zapytań (dziś już zużyto ${used}/2500 darmowego limitu TomTom)`;
+    qw.style.display = (used + n > 2200) ? "block" : "none";
+  }
+  ["departFrom","departTo","stepSelect"].forEach(id =>
+    document.getElementById(id).addEventListener("change", updateCostWarning)
+  );
+  updateCostWarning();
+
+  // ---------- ROUTING (TomTom) ----------
+  async function getRoute(startC, endC, time) {
+    const iso = time.toISOString().split(".")[0];
+    const url = `https://api.tomtom.com/routing/1/calculateRoute/${startC.lat},${startC.lon}:${endC.lat},${endC.lon}/json?key=${TOMTOM_KEY}&departAt=${iso}&traffic=true&travelMode=car`;
+    const r = await fetch(url);
+    if (!r.ok) {
+      if (r.status === 403) throw new Error("Błędny klucz TomTom lub przekroczony limit");
+      return null;
+    }
+    const data = await r.json();
+    if (!data.routes || !data.routes.length) return null;
+    const route = data.routes[0];
+    const timeMin = Math.round(route.summary.travelTimeInSeconds / 60);
+    const distKm = route.summary.lengthInMeters / 1000;
+    const points = route.legs[0].points;
+    return {departure: time, time: timeMin, distance: distKm, points};
+  }
+
+  // ---------- GŁÓWNA LOGIKA ----------
+  let allResults = [], shortestDistance = Infinity, fastestTime = Infinity, chart = null;
+
+  document.getElementById("bestTimeBtn").onclick = findBestTime;
+
   async function findBestTime() {
-    const start = document.getElementById("startInput").value.trim();
-    const end = document.getElementById("endInput").value.trim();
-    if (!start || !end) return alert("Wpisz trasę!");
+    if (!TOMTOM_KEY) return alert("Najpierw wklej i zapisz klucz TomTom (na górze strony)");
+
+    const sC = await resolveCoord("startInput", startCoord);
+    const eC = await resolveCoord("endInput", endCoord);
+    if (!sC || !eC) return alert("Nie udało się rozpoznać jednego z adresów");
+    startCoord = sC; endCoord = eC;
+
+    const n = computeStepCount();
+    if (n <= 0) return alert("Sprawdź zakres godzin — 'do' musi być po 'od'");
+    const used = getDailyCounter();
+    if (used + n > 2500) {
+      if (!confirm(`To przekroczy dzienny darmowy limit TomTom (użyto ${used}/2500). Kontynuować mimo to?`)) return;
+    } else if (n > 40 && !confirm(`To wykona ${n} zapytań. Kontynuować?`)) return;
+
+    const btn = document.getElementById("bestTimeBtn");
+    btn.disabled = true;
+    const progressBar = document.getElementById("progressBar");
+    const progressFill = document.getElementById("progressFill");
+    progressBar.style.display = "block";
+    progressFill.style.width = "0%";
 
     document.getElementById("result").innerHTML = "⏳ Analiza korków...";
     document.getElementById("chartContainer").style.display = "none";
@@ -166,119 +387,20 @@
     const endTime = new Date(tomorrow);
     endTime.setHours(h2,m2);
 
+    let done = 0, errors = 0;
     while (current <= endTime) {
-      const res = await getRoute(start, end, new Date(current));
-      if (res) allResults.push(res);
-      current.setMinutes(current.getMinutes() + step);
-    }
-
-    if (allResults.length === 0) { document.getElementById("result").innerHTML = "Brak danych"; return; }
-
-    const minTime = Math.min(...allResults.map(r => r.time));
-    const candidates = allResults.filter(r => r.time <= minTime + 1).sort((a,b) => a.departure - b.departure);
-    const winner = candidates[0];
-
-    const sweetStart = candidates[0].departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
-    const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
-    const bestHour = winner.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
-
-    document.getElementById("result").innerHTML = `
-      <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
-        WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${bestHour}</strong><br><br>
-        ≈ \( {winner.time} min ( \){winner.distance.toFixed(1)} km)
-      </div>`;
-
-    document.getElementById("sweetWindow").style.display = "block";
-    document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
-
-    if (shortestDistance !== Infinity) {
-      const diffKm = winner.distance - shortestDistance;
-      const diffMin = fastestTime - winner.time;
-      if (Math.abs(diffKm) > 0.5) {
-        document.getElementById("routeInfo").style.display = "block";
-        document.getElementById("routeInfo").innerHTML = diffKm > 0 
-          ? `+\( {diffKm.toFixed(1)} km, ale – \){diffMin} min vs najkrótsza`
-          : `–\( {(-diffKm).toFixed(1)} km, ale + \){(-diffMin)} min vs najszybsza`;
+      try {
+        const res = await getRoute(startCoord, endCoord, new Date(current));
+        if (res) {
+          allResults.push(res);
+          if (res.distance < shortestDistance) shortestDistance = res.distance;
+          if (res.time < fastestTime) fastestTime = res.time;
+        } else errors++;
+      } catch (e) {
+        errors++;
+        document.getElementById("result").innerHTML = `❌ ${e.message}`;
+        if (e.message.includes("klucz")) break;
       }
-    }
-
-    dr.setDirections(winner.route);
-
-    // LINK DO GOOGLE MAPS Z DOKŁADNĄ GODZINĄ
-    const depUnix = Math.floor(winner.departure.getTime() / 1000);
-    document.getElementById("googleMapsLink").href = 
-      `https://www.google.com/maps/dir/?api=1&origin=\( {encodeURIComponent(start)}&destination= \){encodeURIComponent(end)}&travelmode=driving&departure_time=${depUnix}`;
-    document.getElementById("googleMapsLink").style.display = "block";
-
-    drawChart();
-  }
-
-  async function getRoute(start, end, time) {
-    return new Promise(resolve => {
-      ds.route({
-        origin: start,
-        destination: end,
-        travelMode: "DRIVING",
-        drivingOptions: {departureTime: time, trafficModel: document.querySelector('input[name="trafficModel"]:checked').value},
-        provideRouteAlternatives: true
-      }, (res, status) => {
-        if (status !== "OK") return resolve(null);
-        const route = res.routes[0];
-        const leg = route.legs[0];
-        const timeMin = Math.round(leg.duration_in_traffic.value / 60);
-        const distKm = leg.distance.value / 1000;
-
-        if (distKm < shortestDistance) shortestDistance = distKm;
-        if (timeMin < fastestTime) fastestTime = timeMin;
-
-        resolve({
-          departure: time,
-          time: timeMin,
-          distance: distKm,
-          route: res
-        });
-      });
-    });
-  }
-
-  function drawChart() {
-    document.getElementById("chartContainer").style.display = "block";
-    const ctx = document.getElementById('trafficChart').getContext('2d');
-    if (chart) chart.destroy();
-
-    const labels = allResults.map(r => r.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"}));
-    const data = allResults.map(r => r.time);
-    const min = Math.min(...data);
-    const green = allResults.map((r,i) => data[i] <= min + 1 ? i : -1).filter(i => i >= 0);
-
-    chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [{
-          label: 'Czas w korkach (min)',
-          data: data,
-          borderColor: '#d32f2f',
-          backgroundColor: 'rgba(211,47,47,0.1)',
-          fill: true,
-          tension: 0.4,
-          pointBackgroundColor: data.map((_,i) => green.includes(i) ? '#1b5e20' : '#ff5252'),
-          pointRadius: data.map((_,i) => green.includes(i) ? 12 : 6)
-        }]
-      },
-      options: {
-        onClick: (e, el) => {
-          if (el.length > 0) {
-            const i = el[0].index;
-            dr.setDirections(allResults[i].route);
-          }
-        },
-        plugins: { title: { display: true, text: 'Kliknij punkt → zmieni się trasa na mapie', font: {size: 16}}}
-      }
-    });
-  }
-</script>
-
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjZtlDfYFM6yDqKGCoCrt4YA7uPVur-yk&libraries=places&callback=initMap" async defer></script>
-</body>
-</html>
+      done++;
+      bumpDailyCounter(1);
+      progressFill.style.width = Math.round(done
