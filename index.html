@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Korkometr Free – OSM + TomTom</title>
+  <title>Korkometr Pro – TomTom + HERE + Mapbox</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -49,27 +49,29 @@
 <button class="btn theme" id="themeToggle">🌙</button>
 
 <div class="container">
-  <h2>🚗 Korkometr Free</h2>
+  <h2>🚗 Korkometr Pro</h2>
 
   <div class="setup-notice" id="setupNotice">
-    ⚙️ <strong>Pierwsze uruchomienie:</strong> potrzebujesz darmowego klucza TomTom.
-    Załóż konto na <strong>developer.tomtom.com</strong> (bez karty kredytowej, 2500 zapytań/dzień gratis),
-    skopiuj klucz i wklej poniżej. Zapisze się w Twojej przeglądarce.
+    ⚙️ <strong>Konfiguracja TomTom:</strong> Klucz API.
     <input type="text" id="tomtomKeyInput" placeholder="Wklej klucz TomTom tutaj">
     <button class="main-btn" id="saveKeyBtn" style="margin-top:8px">Zapisz klucz</button>
   </div>
 
   <div class="setup-notice" id="hereSetupNotice" style="display:none">
-    ⚙️ <strong>Opcjonalnie – drugie źródło danych (HERE):</strong> żeby porównywać wyniki TomTom z HERE,
-    załóż darmowe konto na <strong>developer.here.com</strong> (bez karty) i wklej klucz.
-    Bez tego korkometr działa wyłącznie na TomTom.
+    ⚙️ <strong>Opcjonalne źródło (HERE):</strong>
     <input type="text" id="hereKeyInput" placeholder="Wklej klucz HERE tutaj (opcjonalnie)">
     <button class="main-btn" id="saveHereKeyBtn" style="margin-top:8px">Zapisz klucz HERE</button>
   </div>
 
+  <div class="setup-notice" id="mapboxSetupNotice" style="display:none">
+    ⚙️ <strong>Opcjonalne trzecie źródło (Mapbox):</strong>
+    <input type="text" id="mapboxKeyInput" placeholder="Wklej klucz Mapbox tutaj (opcjonalnie)">
+    <button class="main-btn" id="saveMapboxKeyBtn" style="margin-top:8px">Zapisz klucz Mapbox</button>
+  </div>
+
   <div class="card">
     <div class="field">
-      <input type="text" id="startInput" placeholder="📍 Skąd jedziesz?" autocomplete="off">
+      <input type="text" id="startInput" placeholder="📍 Skąd jedziesz? (np. praca)" autocomplete="off">
       <div class="suggestions" id="startSuggestions"></div>
     </div>
     <div class="buttons-row">
@@ -78,11 +80,20 @@
       <button class="btn fav" id="saveFavBtn">❤️</button>
     </div>
     <div class="field">
-      <input type="text" id="endInput" placeholder="🏁 Dokąd zmierzasz?" autocomplete="off">
+      <input type="text" id="endInput" placeholder="🏁 Dokąd zmierzasz? (np. dom)" autocomplete="off">
       <div class="suggestions" id="endSuggestions"></div>
     </div>
 
     <div id="favoritesList" style="margin:20px 0"></div>
+
+    <div style="margin: 12px 0;">
+      <label style="font-size: 14px; font-weight: bold; display: block; margin-bottom: 6px;">📅 Dzień wyjazdu:</label>
+      <select id="daySelect">
+        <option value="tomorrow" selected>Jutro</option>
+        <option value="today">Dzisiaj</option>
+        <option value="next_friday">Najbliższy Piątek (duże korki)</option>
+      </select>
+    </div>
 
     <input type="time" id="departFrom" value="14:00">
     <input type="time" id="departTo" value="20:00">
@@ -93,17 +104,22 @@
       <option value="30">co 30 min (oszczędnie)</option>
     </select>
 
+    <div style="margin: 12px 0; display: flex; gap: 15px; font-size: 14px;">
+      <label><input type="checkbox" id="avoidMotorways"> Unikaj autostrad</label>
+      <label><input type="checkbox" id="avoidTolls"> Unikaj dróg płatnych</label>
+    </div>
+
     <div class="cost-warning" id="costWarning"></div>
-    <div class="quota-warning" id="quotaWarning">⚠️ Uwaga: to zbliża się do dziennego darmowego limitu TomTom (2500). Rozważ większy krok.</div>
+    <div class="quota-warning" id="quotaWarning">⚠️ Uwaga: zbliżasz się do limitu darmowych zapytań dziennych.</div>
     <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
 
-    <button class="main-btn" id="bestTimeBtn">🚀 Oblicz najlepszą godzinę!</button>
+    <button class="main-btn" id="bestTimeBtn">🚀 Znajdź najlepszy czas i objazd!</button>
   </div>
 
   <div id="result" class="card">Wypełnij pola i kliknij 🚀</div>
   <div class="route-info" id="routeInfo" style="display:none"></div>
   <div class="sweet-window" id="sweetWindow" style="display:none">
-    <strong>🟢 Sweet spot:</strong><br>
+    <strong>🟢 Najlepsze okno wyjazdu (Sweet spot):</strong><br>
     <span id="sweetText" style="font-size:32px;color:var(--success)"></span>
   </div>
 
@@ -130,38 +146,36 @@
     localStorage.setItem("kork_dark", isDark ? "1" : "0");
   };
 
-  // ---------- KLUCZ TOMTOM ----------
-  // Wpisany na sztywno do osobistego użytku. Nie wrzucaj tego pliku publicznie (np. GitHub) z kluczem w środku.
-  let TOMTOM_KEY = "5e420f45-bf80-4537-989b-d47cd857c383";
-  function refreshSetupNotice() {
-    document.getElementById("setupNotice").style.display = TOMTOM_KEY ? "none" : "block";
-  }
+  // ---------- KLUCZE API ----------
+  let TOMTOK_DEFAULT_KEY = "5e420f45-bf80-4537-989b-d47cd857c383";
+  let TOMTOM_KEY = localStorage.getItem("tomtom_key") || TOMTOK_DEFAULT_KEY;
   document.getElementById("tomtomKeyInput").value = TOMTOM_KEY;
   document.getElementById("saveKeyBtn").onclick = () => {
     const v = document.getElementById("tomtomKeyInput").value.trim();
-    if (!v) return alert("Wklej klucz");
+    if (!v) return alert("Wklej klucz TomTom");
     TOMTOM_KEY = v;
     localStorage.setItem("tomtom_key", v);
-    refreshSetupNotice();
+    alert("Zapisano klucz TomTom!");
   };
-  refreshSetupNotice();
 
-  // ---------- KLUCZ HERE (opcjonalny, drugie źródło) ----------
   let HERE_KEY = localStorage.getItem("here_key") || "";
-  function refreshHereNotice() {
-    document.getElementById("hereSetupNotice").style.display = HERE_KEY ? "none" : "block";
-  }
   document.getElementById("hereKeyInput").value = HERE_KEY;
   document.getElementById("saveHereKeyBtn").onclick = () => {
     const v = document.getElementById("hereKeyInput").value.trim();
-    if (!v) return alert("Wklej klucz");
     HERE_KEY = v;
     localStorage.setItem("here_key", v);
-    refreshHereNotice();
+    alert("Zapisano klucz HERE!");
   };
-  refreshHereNotice();
 
-  // Prosty dzienny licznik zapytań, żeby nie przekroczyć darmowego limitu
+  let MAPBOX_KEY = localStorage.getItem("mapbox_key") || "";
+  document.getElementById("mapboxKeyInput").value = MAPBOX_KEY;
+  document.getElementById("saveMapboxKeyBtn").onclick = () => {
+    const v = document.getElementById("mapboxKeyInput").value.trim();
+    MAPBOX_KEY = v;
+    localStorage.setItem("mapbox_key", v);
+    alert("Zapisano klucz Mapbox!");
+  };
+
   function bumpDailyCounter(n) {
     const today = new Date().toDateString();
     let d = JSON.parse(localStorage.getItem("tomtom_usage")||"{}");
@@ -176,7 +190,7 @@
     return d.date === today ? d.count : 0;
   }
 
-  // ---------- MAPA (Leaflet + OSM, bez klucza) ----------
+  // ---------- MAPA ----------
   const map = L.map('map').setView([52.2297, 21.0122], 11);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -191,7 +205,7 @@
     map.fitBounds(routeLine.getBounds(), {padding:[30,30]});
   }
 
-  // ---------- GEOKODOWANIE / AUTOCOMPLETE (Nominatim, bez klucza) ----------
+  // ---------- GEOKODOWANIE (Nominatim) ----------
   let startCoord = null, endCoord = null;
   let debounceTimers = {};
 
@@ -199,35 +213,18 @@
     const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=pl&addressdetails=0&limit=5&q=${encodeURIComponent(q)}`;
     try {
       const r = await fetch(url, {headers: {"Accept-Language":"pl"}});
-      if (!r.ok) {
-        console.error("Nominatim HTTP error:", r.status);
-        showAutocompleteError();
-        return [];
-      }
+      if (!r.ok) return [];
       return await r.json();
     } catch (err) {
-      // Najczęstsza przyczyna: strona otwarta w sandboksowanym podglądzie bez dostępu do sieci.
-      // Pobierz plik i otwórz go bezpośrednio w przeglądarce (Chrome/Firefox/Safari).
-      console.error("Nominatim fetch failed - prawdopodobnie brak dostępu do sieci w tym podglądzie:", err);
-      showAutocompleteError();
       return [];
     }
-  }
-
-  let autocompleteErrorShown = false;
-  function showAutocompleteError() {
-    if (autocompleteErrorShown) return;
-    autocompleteErrorShown = true;
-    const el = document.getElementById("costWarning");
-    el.style.color = "#d32f2f";
-    el.textContent = "⚠️ Podpowiedzi adresów nie działają w tym podglądzie. Pobierz plik i otwórz go w normalnej przeglądarce (nie w podglądzie Claude).";
   }
 
   function setupAutocomplete(inputId, suggBoxId, coordSetter) {
     const input = document.getElementById(inputId);
     const box = document.getElementById(suggBoxId);
     input.addEventListener("input", () => {
-      coordSetter(null); // reset coord, bo user edytuje ręcznie
+      coordSetter(null);
       const q = input.value.trim();
       clearTimeout(debounceTimers[inputId]);
       if (q.length < 3) { box.style.display = "none"; return; }
@@ -246,7 +243,7 @@
             box.style.display = "none";
           };
         });
-      }, 400); // debounce - szanujemy limit Nominatim (max 1 req/s)
+      }, 400);
     });
     document.addEventListener("click", e => {
       if (!box.contains(e.target) && e.target !== input) box.style.display = "none";
@@ -255,16 +252,6 @@
   setupAutocomplete("startInput", "startSuggestions", c => startCoord = c);
   setupAutocomplete("endInput", "endSuggestions", c => endCoord = c);
 
-  async function resolveCoord(inputId, currentCoord) {
-    if (currentCoord) return currentCoord;
-    const text = document.getElementById(inputId).value.trim();
-    if (!text) return null;
-    const results = await nominatimSearch(text);
-    if (!results.length) return null;
-    return {lat: parseFloat(results[0].lat), lon: parseFloat(results[0].lon)};
-  }
-
-  // ---------- PRZYCISKI ----------
   document.getElementById("swapBtn").onclick = () => {
     const a = document.getElementById("startInput").value, ac = startCoord;
     const b = document.getElementById("endInput").value, bc = endCoord;
@@ -274,8 +261,6 @@
 
   document.getElementById("geoBtn").onclick = () => {
     if (!navigator.geolocation) return alert("Brak geolokacji");
-    const geoBtn = document.getElementById("geoBtn");
-    geoBtn.disabled = true; geoBtn.innerHTML = "⏳";
     navigator.geolocation.getCurrentPosition(async pos => {
       const {latitude:lat, longitude:lon} = pos.coords;
       try {
@@ -287,8 +272,7 @@
         document.getElementById("startInput").value = `${lat},${lon}`;
         startCoord = {lat, lon};
       }
-      geoBtn.disabled = false; geoBtn.innerHTML = "📍";
-    }, () => { geoBtn.disabled = false; geoBtn.innerHTML = "📍"; alert("Brak dostępu do lokalizacji"); });
+    }, () => alert("Brak dostępu do lokalizacji"));
   };
 
   document.getElementById("saveFavBtn").onclick = () => {
@@ -325,7 +309,6 @@
   }
   loadFavorites();
 
-  // ---------- KOSZT / ZAPYTANIA ----------
   function computeStepCount() {
     const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
     const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
@@ -340,7 +323,7 @@
     const el = document.getElementById("costWarning");
     const qw = document.getElementById("quotaWarning");
     if (n <= 0) { el.textContent = ""; qw.style.display = "none"; return; }
-    el.textContent = `ℹ️ To wykona ${n} zapytań (dziś już zużyto ${used}/2500 darmowego limitu TomTom)`;
+    el.textContent = `ℹ️ To wykona ${n} zapytań (dziś zużyto ${used}/2500 TomTom)`;
     qw.style.display = (used + n > 2200) ? "block" : "none";
   }
   ["departFrom","departTo","stepSelect"].forEach(id =>
@@ -348,87 +331,111 @@
   );
   updateCostWarning();
 
-  // ---------- ROUTING (TomTom) ----------
+  // ---------- ROUTING (TomTom z obsługą alternatywnych tras / objazdów) ----------
   async function getRouteTomTom(startC, endC, time) {
     const iso = time.toISOString().split(".")[0];
-    const url = `https://api.tomtom.com/routing/1/calculateRoute/${startC.lat},${startC.lon}:${endC.lat},${endC.lon}/json?key=${TOMTOM_KEY}&departAt=${iso}&traffic=true&travelMode=car`;
+    let avoidParam = "";
+    if (document.getElementById("avoidMotorways").checked) avoidParam += "&avoid=motorways";
+    if (document.getElementById("avoidTolls").checked) avoidParam += "&avoid=tollRoads";
+
+    const url = `https://api.tomtom.com/routing/1/calculateRoute/${startC.lat},${startC.lon}:${endC.lat},${endC.lon}/json?key=${TOMTOM_KEY}&departAt=${iso}&traffic=true&travelMode=car&maxAlternatives=1${avoidParam}`;
     const r = await fetch(url);
     if (!r.ok) {
-      let bodyText = "";
-      try { bodyText = JSON.stringify(await r.json()); } catch(e) {}
-      console.error("TomTom error", r.status, bodyText);
-      if (r.status === 403) throw new Error("Błędny klucz TomTom lub przekroczony limit (403)");
-      if (r.status === 400) throw new Error("TomTom odrzucił zapytanie (400) - sprawdź adresy: " + bodyText.slice(0,150));
-      throw new Error(`TomTom błąd ${r.status}: ${bodyText.slice(0,150)}`);
+      if (r.status === 403) throw new Error("Błędny klucz TomTom (403)");
+      throw new Error(`TomTom błąd ${r.status}`);
     }
     const data = await r.json();
     if (!data.routes || !data.routes.length) return null;
-    const route = data.routes[0];
-    const timeMin = Math.round(route.summary.travelTimeInSeconds / 60);
-    const distKm = route.summary.lengthInMeters / 1000;
-    const points = route.legs[0].points;
-    return {time: timeMin, distance: distKm, points};
+
+    // Porównujemy trasę główną i alternatywną (objazd) i bierzemy tę, która ma najkrótszy czas przejazdu
+    let bestRoute = data.routes[0];
+    let routeType = "Trasa główna";
+    for (let i = 1; i < data.routes.length; i++) {
+      if (data.routes[i].summary.travelTimeInSeconds < bestRoute.summary.travelTimeInSeconds) {
+        bestRoute = data.routes[i];
+        routeType = `Objazd / Alternatywna #${i}`;
+      }
+    }
+
+    return {
+      time: Math.round(bestRoute.summary.travelTimeInSeconds / 60),
+      distance: bestRoute.summary.lengthInMeters / 1000,
+      points: bestRoute.legs[0].points,
+      routeType: routeType
+    };
   }
 
-  // ---------- ROUTING (HERE) - opcjonalne drugie źródło, tylko czas na porównanie ----------
+  // ---------- ROUTING (HERE - opcjonalnie) ----------
   async function getRouteHere(startC, endC, time) {
     if (!HERE_KEY) return null;
     const iso = time.toISOString();
     const url = `https://router.hereapi.com/v8/routes?transportMode=car&origin=${startC.lat},${startC.lon}&destination=${endC.lat},${endC.lon}&departureTime=${iso}&return=summary&apiKey=${HERE_KEY}`;
     try {
       const r = await fetch(url);
-      if (!r.ok) {
-        console.error("HERE error", r.status, await r.text().catch(()=>""));
-        return null; // HERE jest opcjonalne - nie przerywamy głównego liczenia
-      }
+      if (!r.ok) return null;
       const data = await r.json();
-      const summary = data.routes && data.routes[0] && data.routes[0].sections && data.routes[0].sections[0].summary;
+      const summary = data.routes?.[0]?.sections?.[0]?.summary;
       if (!summary) return null;
-      return {time: Math.round(summary.duration / 60), distance: summary.length / 1000};
+      return Math.round(summary.duration / 60);
     } catch (e) {
-      console.error("HERE fetch failed", e);
       return null;
     }
   }
 
-  // Łączy oba źródła: jeśli HERE dostępne, wynik to średnia czasów obu; geometria trasy zawsze z TomTom
+  // ---------- ROUTING (Mapbox - opcjonalnie) ----------
+  async function getRouteMapbox(startC, endC, time) {
+    if (!MAPBOX_KEY) return null;
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${startC.lon},${startC.lat};${endC.lon},${endC.lat}?access_token=${MAPBOX_KEY}&overview=false`;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      const data = await r.json();
+      const route = data.routes?.[0];
+      if (!route) return null;
+      return Math.round(route.duration / 60);
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function getRoute(startC, endC, time) {
-    const [tt, here] = await Promise.all([
+    const [tt, hereTime, mapboxTime] = await Promise.all([
       getRouteTomTom(startC, endC, time),
-      getRouteHere(startC, endC, time)
+      getRouteHere(startC, endC, time),
+      getRouteMapbox(startC, endC, time)
     ]);
     if (!tt) return null;
-    const combinedTime = here ? Math.round((tt.time + here.time) / 2) : tt.time;
+
+    let times = [tt.time];
+    if (hereTime !== null) times.push(hereTime);
+    if (mapboxTime !== null) times.push(mapboxTime);
+    const avgTime = Math.round(times.reduce((a,b)=>a+b, 0) / times.length);
+
     return {
       departure: time,
-      time: combinedTime,
+      time: avgTime,
       tomtomTime: tt.time,
-      hereTime: here ? here.time : null,
+      hereTime: hereTime,
+      mapboxTime: mapboxTime,
       distance: tt.distance,
-      points: tt.points
+      points: tt.points,
+      routeType: tt.routeType
     };
   }
 
   // ---------- GŁÓWNA LOGIKA ----------
   let allResults = [], shortestDistance = Infinity, fastestTime = Infinity, chart = null;
 
-
   document.getElementById("bestTimeBtn").onclick = findBestTime;
 
   async function findBestTime() {
-    if (!TOMTOM_KEY) return alert("Najpierw wklej i zapisz klucz TomTom (na górze strony)");
-
-    const sC = await resolveCoord("startInput", startCoord);
-    const eC = await resolveCoord("endInput", endCoord);
-    if (!sC || !eC) return alert("Nie udało się rozpoznać jednego z adresów");
+    const sC = await nominatimSearch(document.getElementById("startInput").value).then(r=>r[0]?{lat:r[0].lat,lon:r[0].lon}:startCoord);
+    const eC = await nominatimSearch(document.getElementById("endInput").value).then(r=>r[0]?{lat:r[0].lat,lon:r[0].lon}:endCoord);
+    if (!sC || !eC) return alert("Wybierz poprawne adresy z listy podpowiedzi");
     startCoord = sC; endCoord = eC;
 
     const n = computeStepCount();
-    if (n <= 0) return alert("Sprawdź zakres godzin — 'do' musi być po 'od'");
-    const used = getDailyCounter();
-    if (used + n > 2500) {
-      if (!confirm(`To przekroczy dzienny darmowy limit TomTom (użyto ${used}/2500). Kontynuować mimo to?`)) return;
-    } else if (n > 40 && !confirm(`To wykona ${n} zapytań. Kontynuować?`)) return;
+    if (n <= 0) return alert("Sprawdź zakres godzin");
 
     const btn = document.getElementById("bestTimeBtn");
     btn.disabled = true;
@@ -437,21 +444,32 @@
     progressBar.style.display = "block";
     progressFill.style.width = "0%";
 
-    document.getElementById("result").innerHTML = "⏳ Analiza korków...";
+    document.getElementById("result").innerHTML = "⏳ Analizuję korki i szukam najszybszych objazdów...";
     document.getElementById("chartContainer").style.display = "none";
     document.getElementById("routeInfo").style.display = "none";
     document.getElementById("sweetWindow").style.display = "none";
     if (chart) chart.destroy();
     allResults = []; shortestDistance = Infinity; fastestTime = Infinity;
 
-    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1); tomorrow.setHours(0,0,0,0);
+    let baseDate = new Date();
+    baseDate.setHours(0,0,0,0);
+    const dayVal = document.getElementById("daySelect").value;
+    if (dayVal === "tomorrow") {
+      baseDate.setDate(baseDate.getDate() + 1);
+    } else if (dayVal === "next_friday") {
+      let day = baseDate.getDay();
+      let diff = (5 - day + 7) % 7;
+      if (diff === 0) diff = 7;
+      baseDate.setDate(baseDate.getDate() + diff);
+    }
+
     const [h1,m1] = document.getElementById("departFrom").value.split(":").map(Number);
     const [h2,m2] = document.getElementById("departTo").value.split(":").map(Number);
     const step = parseInt(document.getElementById("stepSelect").value);
 
-    let current = new Date(tomorrow);
+    let current = new Date(baseDate);
     current.setHours(h1,m1);
-    const endTime = new Date(tomorrow);
+    const endTime = new Date(baseDate);
     endTime.setHours(h2,m2);
 
     let done = 0, errors = 0, lastError = "";
@@ -466,7 +484,7 @@
       } catch (e) {
         errors++;
         lastError = e.message;
-        if (e.message.includes("klucz") || e.message.includes("403")) break;
+        if (e.message.includes("403")) break;
       }
       done++;
       bumpDailyCounter(1);
@@ -479,13 +497,8 @@
     updateCostWarning();
 
     if (allResults.length === 0) {
-      document.getElementById("result").innerHTML = lastError
-        ? `❌ ${lastError}`
-        : "❌ Brak danych — sprawdź czy oba adresy są wybrane z listy podpowiedzi";
+      document.getElementById("result").innerHTML = lastError ? `❌ ${lastError}` : "❌ Brak danych z routingu";
       return;
-    }
-    if (errors > 0) {
-      document.getElementById("result").innerHTML = `⚠️ ${errors} zapytań nie powiodło się`;
     }
 
     const minTime = Math.min(...allResults.map(r => r.time));
@@ -496,37 +509,26 @@
     const sweetEnd = candidates[candidates.length-1].departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
     const bestHour = winner.departure.toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
 
-    const sourcesNote = winner.hereTime !== null
-      ? `<div style="font-size:14px;margin-top:8px;color:#555">TomTom: ${winner.tomtomTime} min · HERE: ${winner.hereTime} min · wynik uśredniony</div>`
-      : `<div style="font-size:14px;margin-top:8px;color:#555">Źródło: TomTom (dodaj klucz HERE, żeby porównać)</div>`;
+    let sourcesHtml = `<div style="font-size:14px;margin-top:8px;color:#555">Typ trasy: <strong>${winner.routeType}</strong> (TomTom)`;
+    if (winner.hereTime !== null) sourcesHtml += ` | HERE: ${winner.hereTime}m`;
+    if (winner.mapboxTime !== null) sourcesHtml += ` | Mapbox: ${winner.mapboxTime}m`;
+    sourcesHtml += `</div>`;
 
     document.getElementById("result").innerHTML = `
       <div style="background:#e8f5e9;padding:30px;border-radius:16px;font-size:22px">
-        WYJEDŹ O <strong style="font-size:42px;color:#1b5e20">${bestHour}</strong><br><br>
+        NAJLEPIEJ WYJECHAĆ O <strong style="font-size:42px;color:#1b5e20">${bestHour}</strong><br><br>
         ≈ ${winner.time} min (${winner.distance.toFixed(1)} km)
-        ${sourcesNote}
+        ${sourcesHtml}
       </div>`;
 
     document.getElementById("sweetWindow").style.display = "block";
     document.getElementById("sweetText").innerHTML = sweetStart + " – " + sweetEnd;
-
-    if (shortestDistance !== Infinity) {
-      const diffKm = winner.distance - shortestDistance;
-      const diffMin = fastestTime - winner.time;
-      if (Math.abs(diffKm) > 0.5) {
-        document.getElementById("routeInfo").style.display = "block";
-        document.getElementById("routeInfo").innerHTML = diffKm > 0
-          ? `+${diffKm.toFixed(1)} km, ale –${diffMin} min vs najkrótsza`
-          : `–${(-diffKm).toFixed(1)} km, ale +${(-diffMin)} min vs najszybsza`;
-      }
-    }
 
     drawRoute(winner.points);
 
     const startTxt = document.getElementById("startInput").value;
     const endTxt = document.getElementById("endInput").value;
     const depUnix = Math.floor(winner.departure.getTime() / 1000);
-    // Ten link NIE zużywa API - to zwykły deep link, darmowy
     document.getElementById("googleMapsLink").href =
       `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(startTxt)}&destination=${encodeURIComponent(endTxt)}&travelmode=driving&departure_time=${depUnix}`;
     document.getElementById("googleMapsLink").style.display = "block";
@@ -549,21 +551,21 @@
       data: {
         labels: labels,
         datasets: [{
-          label: 'Czas w korkach (min)',
+          label: 'Szacowany czas podróży (min)',
           data: data,
-          borderColor: '#d32f2f',
-          backgroundColor: 'rgba(211,47,47,0.1)',
+          borderColor: '#1565c0',
+          backgroundColor: 'rgba(21,101,192,0.1)',
           fill: true,
           tension: 0.4,
           pointBackgroundColor: data.map((_,i) => green.includes(i) ? '#1b5e20' : '#ff5252'),
-          pointRadius: data.map((_,i) => green.includes(i) ? 12 : 6)
+          pointRadius: data.map((_,i) => green.includes(i) ? 10 : 5)
         }]
       },
       options: {
         onClick: (e, el) => {
           if (el.length > 0) drawRoute(allResults[el[0].index].points);
         },
-        plugins: { title: { display: true, text: 'Kliknij punkt → zmieni się trasa na mapie', font: {size: 16}}}
+        plugins: { title: { display: true, text: 'Wykres korków (kliknij punkt, aby zobaczyć trasę)', font: {size: 16}}}
       }
     });
   }
