@@ -57,6 +57,11 @@
     <button class="main-btn" id="saveKeyBtn" style="margin-top:8px">Zapisz klucz</button>
   </div>
 
+    <div class="setup-notice" id="gmapsSetupNotice" style="display:none">
+    ⚙️ <strong>Opcjonalne źródło (Google Maps):</strong> Wklej klucz Google Maps API (Directions / Distance Matrix), aby uwzględniać oficjalne korki Google.
+    <input type="text" id="gmapsKeyInput" placeholder="Wklej klucz Google Maps API tutaj (opcjonalnie)">
+    <button class="main-btn" id="saveGmapsKeyBtn" style="margin-top:8px">Zapisz klucz Google Maps</button>
+  </div>
   <div class="setup-notice" id="hereSetupNotice" style="display:none">
     ⚙️ <strong>Opcjonalne źródło (HERE):</strong>
     <input type="text" id="hereKeyInput" placeholder="Wklej klucz HERE tutaj (opcjonalnie)">
@@ -147,8 +152,8 @@
   };
 
   // ---------- KLUCZE API ----------
-  let TOMTOK_DEFAULT_KEY = "5e420f45-bf80-4537-989b-d47cd857c383";
-  let TOMTOM_KEY = localStorage.getItem("tomtom_key") || TOMTOK_DEFAULT_KEY;
+  let TOMTOM_DEFAULT_KEY = "5e420f45-bf80-4537-989b-d47cd857c383";
+  let TOMTOM_KEY = localStorage.getItem("tomtom_key") || TOMTOM_DEFAULT_KEY;
   document.getElementById("tomtomKeyInput").value = TOMTOM_KEY;
   document.getElementById("saveKeyBtn").onclick = () => {
     const v = document.getElementById("tomtomKeyInput").value.trim();
@@ -398,17 +403,57 @@
     }
   }
 
+  
+  // ---------- KLUCZ GOOGLE MAPS ----------
+  let GMAPS_KEY = localStorage.getItem("gmaps_key") || "";
+  function refreshGmapsNotice() {
+    document.getElementById("gmapsSetupNotice").style.display = GMAPS_KEY ? "none" : "block";
+  }
+  const gmapsInput = document.getElementById("gmapsKeyInput");
+  if (gmapsInput) gmapsInput.value = GMAPS_KEY;
+  const saveGmapsBtn = document.getElementById("saveGmapsKeyBtn");
+  if (saveGmapsBtn) {
+    saveGmapsBtn.onclick = () => {
+      const v = document.getElementById("gmapsKeyInput").value.trim();
+      GMAPS_KEY = v;
+      localStorage.setItem("gmaps_key", v);
+      refreshGmapsNotice();
+      alert("Zapisano klucz Google Maps!");
+    };
+  }
+  refreshGmapsNotice();
+
+  // ---------- ROUTING (Google Maps Distance Matrix / Directions) ----------
+  async function getRouteGoogleMaps(startC, endC, time) {
+    if (!GMAPS_KEY) return null;
+    const depTimestamp = Math.floor(time.getTime() / 1000);
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${startC.lat},${startC.lon}&destination=${endC.lat},${endC.lon}&mode=driving&departure_time=${depTimestamp}&traffic_model=best_guess&key=${GMAPS_KEY}`;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      const data = await r.json();
+      if (!data.routes || !data.routes.length) return null;
+      const leg = data.routes[0].legs[0];
+      const durationSec = leg.duration_in_traffic ? leg.duration_in_traffic.value : leg.duration.value;
+      return Math.round(durationSec / 60);
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function getRoute(startC, endC, time) {
-    const [tt, hereTime, mapboxTime] = await Promise.all([
+    const [tt, hereTime, mapboxTime, gmapsTime] = await Promise.all([
       getRouteTomTom(startC, endC, time),
       getRouteHere(startC, endC, time),
-      getRouteMapbox(startC, endC, time)
+      getRouteMapbox(startC, endC, time),
+      getRouteGoogleMaps(startC, endC, time)
     ]);
     if (!tt) return null;
 
     let times = [tt.time];
     if (hereTime !== null) times.push(hereTime);
     if (mapboxTime !== null) times.push(mapboxTime);
+    if (gmapsTime !== null) times.push(gmapsTime);
     const avgTime = Math.round(times.reduce((a,b)=>a+b, 0) / times.length);
 
     return {
@@ -417,6 +462,7 @@
       tomtomTime: tt.time,
       hereTime: hereTime,
       mapboxTime: mapboxTime,
+      gmapsTime: gmapsTime,
       distance: tt.distance,
       points: tt.points,
       routeType: tt.routeType
@@ -512,6 +558,7 @@
     let sourcesHtml = `<div style="font-size:14px;margin-top:8px;color:#555">Typ trasy: <strong>${winner.routeType}</strong> (TomTom)`;
     if (winner.hereTime !== null) sourcesHtml += ` | HERE: ${winner.hereTime}m`;
     if (winner.mapboxTime !== null) sourcesHtml += ` | Mapbox: ${winner.mapboxTime}m`;
+    if (winner.gmapsTime !== null) sourcesHtml += ` | Google Maps: ${winner.gmapsTime}m`;
     sourcesHtml += `</div>`;
 
     document.getElementById("result").innerHTML = `
