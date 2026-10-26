@@ -51,25 +51,29 @@
 <div class="container">
   <h2>🚗 Korkometr Pro</h2>
 
-  <div class="setup-notice" id="setupNotice">
-    ⚙️ <strong>Konfiguracja TomTom:</strong> Klucz API.
+  <div class="setup-notice" id="setupNotice" style="display:none">
+    ⚙️ <strong>Konfiguracja TomTom (opcjonalnie własny klucz):</strong><br>
+    <a href="https://developer.tomtom.com/" target="_blank" style="color:var(--primary)">👉 Zdobądź darmowy klucz na developer.tomtom.com</a>
     <input type="text" id="tomtomKeyInput" placeholder="Wklej klucz TomTom tutaj">
     <button class="main-btn" id="saveKeyBtn" style="margin-top:8px">Zapisz klucz</button>
   </div>
+  <div style="text-align:right; margin-bottom:10px;">
+    <button id="toggleTomTomSetup" style="background:none; border:none; color:var(--primary); cursor:pointer; font-size:13px;">⚙️ Konfiguracja klucza TomTom</button>
+  </div>
 
     <div class="setup-notice" id="gmapsSetupNotice" style="display:none">
-    ⚙️ <strong>Opcjonalne źródło (Google Maps):</strong> Wklej klucz Google Maps API (Directions / Distance Matrix), aby uwzględniać oficjalne korki Google.
+    ⚙️ <strong>Opcjonalne źródło (Google Maps):</strong> <a href="https://console.cloud.google.com/google/maps-apis/" target="_blank" style="color:var(--primary)">👉 Zdobądź klucz na console.cloud.google.com</a><br>Wklej klucz Google Maps API (Directions / Distance Matrix), aby uwzględniać oficjalne korki Google.
     <input type="text" id="gmapsKeyInput" placeholder="Wklej klucz Google Maps API tutaj (opcjonalnie)">
     <button class="main-btn" id="saveGmapsKeyBtn" style="margin-top:8px">Zapisz klucz Google Maps</button>
   </div>
   <div class="setup-notice" id="hereSetupNotice" style="display:none">
-    ⚙️ <strong>Opcjonalne źródło (HERE):</strong>
+    ⚙️ <strong>Opcjonalne źródło (HERE):</strong> <a href="https://developer.here.com/" target="_blank" style="color:var(--primary)">👉 Zdobądź klucz na developer.here.com</a><br>
     <input type="text" id="hereKeyInput" placeholder="Wklej klucz HERE tutaj (opcjonalnie)">
     <button class="main-btn" id="saveHereKeyBtn" style="margin-top:8px">Zapisz klucz HERE</button>
   </div>
 
   <div class="setup-notice" id="mapboxSetupNotice" style="display:none">
-    ⚙️ <strong>Opcjonalne trzecie źródło (Mapbox):</strong>
+    ⚙️ <strong>Opcjonalne trzecie źródło (Mapbox):</strong> <a href="https://account.mapbox.com/access-tokens/" target="_blank" style="color:var(--primary)">👉 Zdobądź klucz na account.mapbox.com</a><br>
     <input type="text" id="mapboxKeyInput" placeholder="Wklej klucz Mapbox tutaj (opcjonalnie)">
     <button class="main-btn" id="saveMapboxKeyBtn" style="margin-top:8px">Zapisz klucz Mapbox</button>
   </div>
